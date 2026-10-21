@@ -3,6 +3,7 @@
 Личный трекер финансов для Android. Данные хранятся только на телефоне.
 
 - Правила и спецификация: [CLAUDE.md](CLAUDE.md)
+- Стиль v3 «мех-HUD»: [docs/STYLE.md](docs/STYLE.md), живой эталон — [prototype/style.html](prototype/style.html)
 - Журнал решений: [docs/DECISIONS.md](docs/DECISIONS.md)
 - Статус и бэклог: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Эталон логики и дизайна (веб-версия, этап A): [kassa.html](kassa.html)
@@ -11,6 +12,7 @@
 
 - `core/` — чистый Kotlin: модель данных, значения по умолчанию, расчёты (без Android и базы).
 - `app/` — Android: база Room, тема, экраны Compose. Схема базы — `app/schemas/`.
+- `prototype/` — локальный HTML-прототип стиля: открыть в браузере, без сети (шрифты берёт из `app/src/main/res/font/`).
 - `fonts/` — лицензии шрифтов (OFL). Сами шрифты — `app/src/main/res/font/`.
 
 ## Сборка
