@@ -1,0 +1,25 @@
+# Сборка и Gradle
+.gradle/
+build/
+*/build/
+.kotlin/
+local.properties
+captures/
+*.apk
+*.aab
+
+# IDE и системные
+.idea/
+*.iml
+.DS_Store
+
+# Ключи подписи и секреты — никогда не в репозиторий
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Финансовые данные (экспорт/резервные копии)
+*.kassa.json
+backup*.json
+export*.json
