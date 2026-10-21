@@ -122,6 +122,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .op .n{font-size:13px}.op .m{font-size:10px;color:var(--grey)}
 .op .a{font:700 16px var(--display);font-variant-numeric:tabular-nums}
 
+/* стартовый экран */
+.steps{list-style:none;margin-top:12px;display:flex;flex-direction:column;gap:10px}
+.steps li{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:baseline;font-size:12px}
+.steps b{font:800 16px var(--display)}
+.empty-row{display:flex;gap:12px;align-items:center;color:var(--grey);font-size:12px;padding:14px}
+.empty-row .cjk{font-size:20px;color:var(--line)}
+[hidden]{display:none!important}
+
 /* нижняя навигация */
 .nav{position:absolute;left:0;right:0;bottom:0;height:78px;background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,1fr) 82px repeat(2,1fr);align-items:center;padding:0 6px 10px;z-index:5}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;letter-spacing:.08em;color:var(--grey);text-transform:uppercase;padding:8px 0;position:relative}
@@ -238,6 +246,24 @@ table.motion th{color:var(--grey);font-weight:500}
           <div class="vtag"><span>今</span><span>日</span></div>
         </div>
 
+        <!-- стартовый экран: пустая база -->
+        <div id="start">
+          <div class="panel paper shape-a reveal" style="--i:2;padding-top:24px">
+            <div class="lbl"><span>С чего начать</span><span class="cjk">始め</span></div>
+            <ol class="steps">
+              <li><b>01</b><span>Добавь счета: карты, наличные, вклады.</span></li>
+              <li><b>02</b><span>Во вкладке «План» внеси постоянные доходы и расходы.</span></li>
+              <li><b>03</b><span>Во вкладке «Долги» внеси кредиты и цели.</span></li>
+              <li><b>04</b><span>Траты за день вноси кнопкой «+».</span></li>
+            </ol>
+            <button class="btn primary press" style="margin-top:14px"><span>Добавить первый счёт</span><span class="arrows">⇲⇲</span></button>
+            <span class="cross" style="right:12px;bottom:8px"></span>
+          </div>
+          <div class="ops-h reveal" style="--i:3"><span><span class="cjk">履歴</span> &nbsp;Операции сегодня</span><span>00 шт</span></div>
+          <div class="panel dark shape-c reveal empty-row" style="--i:4"><span class="cjk">空</span><span>Пока пусто. Первая трата появится здесь.</span></div>
+        </div>
+
+        <div id="demo" hidden>
         <!-- главная панель -->
         <div class="panel lime shape-a reveal" id="hero" style="--i:2;padding-top:24px">
           <div class="lbl"><span>Осталось на сегодня</span><span class="cjk">残高</span></div>
@@ -261,6 +287,7 @@ table.motion th{color:var(--grey);font-weight:500}
         <div class="panel dark shape-c op reveal" style="--i:5"><div class="ic">食</div><div><div class="n">Продукты</div><div class="m">Я · Карта · 12:40</div></div><div class="a">−540</div></div>
         <div class="panel dark shape-c op reveal" style="--i:6"><div class="ic">茶</div><div><div class="n">Кофе</div><div class="m">Я · Наличные · 09:15</div></div><div class="a">−220</div></div>
         <div class="panel dark shape-c op reveal" style="--i:7"><div class="ic" style="color:var(--ink);background:var(--lime)">入</div><div><div class="n">Кэшбэк</div><div class="m">Варя · Карта · 08:02</div></div><div class="a" style="color:var(--lime)">+150</div></div>
+        </div>
       </div>
 
       <nav class="nav">
@@ -274,7 +301,7 @@ table.motion th{color:var(--grey);font-weight:500}
       <div class="scrim" id="scrim"></div>
       <div class="sheet" id="sheet">
         <h3><span>Новая трата</span><span class="cjk">支出</span></h3>
-        <div class="amount">540<span class="caret"></span><span style="font-size:.5em;margin-left:8px;color:var(--grey)">₽</span></div>
+        <div class="amount">0<span class="caret"></span><span style="font-size:.5em;margin-left:8px;color:var(--grey)">₽</span></div>
         <div class="chips">
           <span class="chip on">食 Продукты</span><span class="chip">茶 Кафе</span><span class="chip">車 Транспорт</span><span class="chip">家 Дом</span><span class="chip">楽 Развлечения</span>
         </div>
@@ -294,6 +321,7 @@ table.motion th{color:var(--grey);font-weight:500}
     </div></div>
     <div class="phone-tools">
       <button class="small-btn" id="replay">▶ Запуск экрана</button>
+      <button class="small-btn" id="demoBtn">Демо-данные: выкл</button>
       <button class="small-btn" id="overBtn">Перерасход вкл/выкл</button>
       <button class="small-btn" id="glitchNow">Глитч сейчас</button>
     </div>
@@ -400,6 +428,13 @@ table.motion th{color:var(--grey);font-weight:500}
     }, step * (lines.length + 1) + 160);
   }
   $('#replay').onclick = boot;
+  let demo = false;
+  const syncDemo = () => {
+    $('#demo').hidden = !demo; $('#start').hidden = demo; $('#overBtn').hidden = !demo;
+    $('#demoBtn').textContent = 'Демо-данные: ' + (demo ? 'вкл' : 'выкл');
+  };
+  $('#demoBtn').onclick = () => { demo = !demo; syncDemo(); boot(); };
+  syncDemo();
   boot();
 
   // перерасход
@@ -418,7 +453,7 @@ table.motion th{color:var(--grey);font-weight:500}
   const screen = $('#screen');
   const openSheet = () => screen.classList.add('sheet-open'), closeSheet = () => screen.classList.remove('sheet-open');
   $('#fab').onclick = openSheet; $('#scrim').onclick = closeSheet; $('#cancel').onclick = closeSheet;
-  $('#save').onclick = () => { closeSheet(); setTimeout(() => { const n = $('#heroNum .num'); n.dataset.val = String(+n.dataset.val - 540); scramble(n, +n.dataset.val); }, 260); };
+  $('#save').onclick = () => { closeSheet(); if (demo) setTimeout(() => { const n = $('#heroNum .num'); n.dataset.val = String(+n.dataset.val - 540); scramble(n, +n.dataset.val); }, 260); };
   $$('.chip').forEach(c => c.onclick = () => { [...c.parentNode.children].forEach(x => x.classList.remove('on')); c.classList.add('on'); });
 
   // глитч
@@ -430,7 +465,7 @@ table.motion th{color:var(--grey);font-weight:500}
   }
   function glitchOnce() {
     if (screen.classList.contains('sheet-open')) return; // не мешаем вводу
-    const pool = [$('#heroNum'), $('.head h1')];
+    const pool = [$('#heroNum'), $('.head h1')].filter(el => el.offsetParent);
     fire(pool[Math.floor(Math.random() * pool.length)]);
     if (Math.random() < .4) tear();
   }
@@ -442,7 +477,7 @@ table.motion th{color:var(--grey);font-weight:500}
     glTimer = setTimeout(() => { glitchOnce(); fire($('#demoGl')); schedule(); }, a + Math.random() * (b - a));
   }
   schedule();
-  $('#glitchNow').onclick = () => { fire($('#heroNum')); fire($('.head h1')); tear(); };
+  $('#glitchNow').onclick = () => { if (demo) fire($('#heroNum')); fire($('.head h1')); tear(); };
   $$('[data-gl]').forEach(b => b.onclick = () => { $$('[data-gl]').forEach(x => x.classList.remove('on')); b.classList.add('on'); glLevel = +b.dataset.gl; schedule(); });
 
   // демо-кнопки
