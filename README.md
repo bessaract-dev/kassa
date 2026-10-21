@@ -7,10 +7,23 @@
 - Статус и бэклог: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Эталон логики и дизайна (веб-версия, этап A): [kassa.html](kassa.html)
 
+## Структура
+
+- `core/` — чистый Kotlin: модель данных, значения по умолчанию, расчёты (без Android и базы).
+- `app/` — Android: база Room, тема, экраны Compose. Схема базы — `app/schemas/`.
+- `fonts/` — лицензии шрифтов (OFL). Сами шрифты — `app/src/main/res/font/`.
+
 ## Сборка
 
-Каркас Android-проекта появится на шаге 1 этапа B. Тогда здесь будет команда сборки.
-Нужны: JDK 17+, Android SDK, Gradle (через `./gradlew`).
+Нужны JDK 17+ и Android SDK (platform 36, build-tools 36). Gradle скачивается сам через `./gradlew`.
+
+```sh
+echo "sdk.dir=/путь/к/android-sdk" > local.properties   # не попадает в репозиторий
+./gradlew :core:test :app:assembleDebug
+```
+
+Готовый файл: `app/build/outputs/apk/debug/app-debug.apk`.
+Debug-сборка ставится рядом с будущей релизной (id `dev.bessaract.kassa.debug`) и подписана временным отладочным ключом.
 
 ## Установка на телефон
 
