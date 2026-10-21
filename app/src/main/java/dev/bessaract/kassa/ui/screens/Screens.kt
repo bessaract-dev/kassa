@@ -2,53 +2,33 @@ package dev.bessaract.kassa.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.bessaract.kassa.KassaApp
 import dev.bessaract.kassa.ui.Tab
-import dev.bessaract.kassa.ui.components.HeroCard
-import dev.bessaract.kassa.ui.components.StatTile
 import dev.bessaract.kassa.ui.components.TerminalCard
 import dev.bessaract.kassa.ui.theme.KassaColors
 import dev.bessaract.kassa.ui.theme.KassaType
 
-/** «Сегодня» на шаге 1: вид главной цифры без расчётов и проверка, что база создалась. */
+/** «Сегодня» до появления расчётов: стартовая карточка «С чего начать», как в kassa.html при пустой базе. */
 @Composable
 fun TodayScreen() {
-    val dao = (LocalContext.current.applicationContext as KassaApp).db.dao()
-    // remember: запрос к базе создаётся один раз, а не при каждой перерисовке.
-    val cats by remember(dao) { dao.categories() }.collectAsStateWithLifecycle(emptyList())
-    val persons by remember(dao) { dao.persons() }.collectAsStateWithLifecycle(emptyList())
-    val accounts by remember(dao) { dao.accounts() }.collectAsStateWithLifecycle(emptyList())
-    val txCount by remember(dao) { dao.txCount() }.collectAsStateWithLifecycle(0)
-
-    HeroCard(label = "На сегодня осталось", value = "— ₽", sub = "Расчёт лимита появится на шаге 2")
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StatTile("— ₽", "свободно до конца месяца", Modifier.weight(1f))
-        StatTile("— ₽", "обязательные платежи в месяц", Modifier.weight(1f))
-    }
-    TerminalCard("База данных") {
-        Line("Категорий", "${cats.size} (расход ${cats.count { it.type == "exp" }}, доход ${cats.count { it.type == "inc" }})")
-        Line("На кого", persons.joinToString(", ") { it.name })
-        Line("Счетов", accounts.size.toString())
-        Line("Операций", txCount.toString())
+    TerminalCard("С чего начать") {
+        steps.forEachIndexed { i, step ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("${i + 1}.", style = KassaType.Body.copy(color = KassaColors.Accent))
+                Text(step, style = KassaType.Body)
+            }
+        }
     }
 }
 
-@Composable
-private fun Line(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = KassaType.Small)
-        Text(value, style = KassaType.Body.copy(color = KassaColors.Good))
-    }
-}
+private val steps = listOf(
+    "Добавь счета: карты, наличные, вклады.",
+    "Во вкладке «План» внеси постоянные доходы и расходы.",
+    "Во вкладке «Долги» внеси кредиты и цели.",
+    "Траты за день вноси кнопкой «+».",
+)
 
 private val upcoming = mapOf(
     Tab.HIST to "Операции по дням, переключение месяцев.",
