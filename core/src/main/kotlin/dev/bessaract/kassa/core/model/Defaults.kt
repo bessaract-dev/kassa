@@ -33,3 +33,9 @@ object Defaults {
         goals = emptyList(),
     )
 }
+
+/** Категория расхода по названию, без учёта регистра и пробелов по краям. */
+fun findExpCategory(cats: List<Category>, name: String): Category? {
+    val n = name.trim()
+    return cats.firstOrNull { it.type == CatType.EXP && it.name.trim().equals(n, ignoreCase = true) }
+}

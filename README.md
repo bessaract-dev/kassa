@@ -23,6 +23,26 @@ echo "sdk.dir=/путь/к/android-sdk" > local.properties   # не попада
 ```
 
 Готовый файл: `app/build/outputs/apk/debug/app-debug.apk`.
+
+### Релизная сборка (ей пользуемся на телефоне)
+
+Подписывается постоянным ключом, чтобы новые версии ставились поверх старой без потери данных.
+Ключ и пароли лежат вне репозитория (в облачной среде — общая папка проекта `signing/`):
+
+```sh
+cp /mnt/project-files/signing/keystore.properties .   # не попадает в репозиторий
+./gradlew :app:assembleRelease
+```
+
+Готовый файл: `app/build/outputs/apk/release/app-release.apk`. Без `keystore.properties` APK получится неподписанным и не установится.
+
+### Скриншоты экранов без эмулятора
+
+```sh
+./gradlew :app:testDebugUnitTest --tests dev.bessaract.kassa.ui.ScreenshotTest
+```
+
+PNG — в `app/build/screenshots/`.
 Debug-сборка ставится рядом с будущей релизной (id `dev.bessaract.kassa.debug`) и подписана временным отладочным ключом.
 
 ## Установка на телефон

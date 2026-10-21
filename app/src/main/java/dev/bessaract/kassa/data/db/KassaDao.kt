@@ -2,6 +2,7 @@ package dev.bessaract.kassa.data.db
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -33,4 +34,17 @@ interface KassaDao {
 
     @Query("SELECT COUNT(*) FROM tx")
     fun txCount(): Flow<Int>
+
+    @androidx.room.Insert
+    suspend fun insertCategory(cat: CategoryEntity)
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM categories")
+    suspend fun maxCategoryPosition(): Int
+
+    /** Новая операция или правка существующей (по id). */
+    @Upsert
+    suspend fun upsertTx(tx: TxEntity)
+
+    @Query("DELETE FROM tx WHERE id = :id")
+    suspend fun deleteTx(id: String)
 }
