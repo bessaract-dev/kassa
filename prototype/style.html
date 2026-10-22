@@ -499,7 +499,7 @@ table.motion th{color:var(--grey);font-weight:500}
     const inc = ['Зарплата', 'Подработка', 'Прочий доход'];
     return {
       cats: [...exp.map(n => ({ id: uid(), name: n, type: 'exp' })), { id: 'c_loan', name: 'Кредиты', type: 'exp' }, { id: 'c_goal', name: 'Накопления', type: 'exp' }, ...inc.map(n => ({ id: uid(), name: n, type: 'inc' }))],
-      persons: ['Я', 'Варя', 'Ира', 'Мама'], rec: [], loans: [], goals: [], tx: [],
+      persons: ['Я', 'Варя', 'Ира', 'Мама'], accounts: [], rec: [], loans: [], goals: [], tx: [],
     };
   }
   let S;
@@ -507,6 +507,18 @@ table.motion th{color:var(--grey);font-weight:500}
   if (!S || !S.cats) S = defaults();
   S.goals ||= []; // данные прототипа до появления целей
   S.loans ||= []; // и до кредитов
+  S.accounts ||= []; // и до счетов
+  // счета (как в kassa.html): баланс = остаток на старте ± операции этого счёта; переводы между счетами в бюджет не входят
+  const defAcc = () => S.accounts[0]?.id || '';
+  const accName = id => S.accounts.find(a => a.id === id)?.name || 'счёт удалён';
+  function accBal(a) {
+    let b = a.init;
+    S.tx.forEach(t => {
+      if (t.t === 'tr') { if (t.acc === a.id) b -= t.rub; if (t.to === a.id) b += t.rub; }
+      else if (t.acc === a.id) b += t.t === 'inc' ? t.rub : -t.rub;
+    });
+    return Math.round(b * 100) / 100;
+  }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
 
   const cat = id => S.cats.find(c => c.id === id);
@@ -579,10 +591,11 @@ table.motion th{color:var(--grey);font-weight:500}
   const opsH = (c, t, r) => `<div class="ops-h${rv()}"><span><span class="cjk">${c}</span> &nbsp;${t}</span><span>${r}</span></div>`;
   const empty = (c, t) => `<div class="panel dark shape-c empty-row${rv()}"><span class="cjk">${c}</span><span>${t}</span></div>`;
   function txRow(t) {
+    if (t.t === 'tr') return `<div class="panel dark shape-c op${rv()}" data-act="editTx" data-id="${t.id}"><div class="ic">转</div><div><div class="n">Перевод</div><div class="m">${esc([accName(t.acc) + ' → ' + accName(t.to), t.note, time(t.ts)].filter(Boolean).join(' · '))}</div></div><div class="a" style="color:var(--grey)">${fmtN(t.rub)}</div></div>`;
     const inc = t.t === 'inc', mark = !t.ref ? '' : t.ref.k === 'loan' ? 'платёж по долгу' : t.ref.k === 'goal' ? 'в цель' : inc ? 'получено по плану' : 'по плану';
     // операция по плану называется как строка плана, а не как категория
     const title = t.ref ? t.note : catName(t.cat);
-    const meta = [inc ? '' : t.who, mark, t.ref ? '' : t.note, time(t.ts)].filter(Boolean).join(' · ');
+    const meta = [inc ? '' : t.who, mark, t.acc && S.accounts.length ? accName(t.acc) : '', t.ref ? '' : t.note, time(t.ts)].filter(Boolean).join(' · ');
     return `<div class="panel dark shape-c op${rv()}" data-act="editTx" data-id="${t.id}"><div class="ic"${inc ? ' style="color:var(--ink);background:var(--lime)"' : ''}>${inc ? (ICON[catName(t.cat)] || '收') : icon(t.cat)}</div><div><div class="n">${esc(title)}</div><div class="m">${esc(meta)}</div></div><div class="a${inc ? ' pos' : ''}">${inc ? '+' : '−'}${fmtN(t.rub)}</div></div>`;
   }
   // строка плана: статус за этот месяц + кнопка «Оплатил/Получил»
@@ -614,6 +627,16 @@ table.motion th{color:var(--grey);font-weight:500}
     const r = S.rec.filter(x => !paidTx(x.id)).map(x => ({ day: x.day, h: () => recRow(x, true) }));
     const l = S.loans.filter(x => loanPlan(x).reserve > 0).map(x => ({ day: x.day, h: () => loanRow(x, true) }));
     return r.concat(l).sort((a, b) => a.day - b.day);
+  }
+
+  // за месяц по счёту: пришло / ушло (переводы тоже)
+  function accMeta(a) {
+    let i = 0, o = 0;
+    monthTx(today().slice(0, 7)).forEach(t => {
+      if (t.t === 'tr') { if (t.acc === a.id) o += t.rub; if (t.to === a.id) i += t.rub; }
+      else if (t.acc === a.id) { if (t.t === 'inc') i += t.rub; else o += t.rub; }
+    });
+    return i || o ? `за месяц +${fmtN(i)} / −${fmtN(o)}` : 'в этом месяце без операций';
   }
 
   /* ---------- экраны ---------- */
@@ -649,8 +672,14 @@ table.motion th{color:var(--grey);font-weight:500}
       const due = dueRows();
       if (due.length) h += opsH('待付', 'Ждут в этом месяце', String(due.length).padStart(2, '0') + ' шт') + due.map(d => d.h()).join('');
     }
+    if (S.accounts.length) {
+      h += opsH('账户', 'Счета', 'всего ' + fmtN(sum(S.accounts, accBal)));
+      h += S.accounts.map(a => { const v = accBal(a); return `<div class="panel dark shape-c op${rv()}" data-act="editAcc" data-id="${a.id}"><div class="ic">账</div><div><div class="n">${esc(a.name)}</div><div class="m">${accMeta(a)}</div></div><div class="a"${v < 0 ? ' style="color:var(--bad)"' : ''}>${fmtN(v)}</div></div>`; }).join('');
+      h += `<button class="add-row press${rv()}" data-act="newAcc"><b>+</b>Добавить счёт</button>`;
+    }
     h += opsH('记录', 'Операции сегодня', String(tTx.length).padStart(2, '0') + ' шт');
     h += tTx.length ? tTx.map(txRow).join('') : empty('空', 'Пока пусто. Нажми «+», чтобы записать трату.');
+    if (!S.accounts.length) h += `<button class="add-row press${rv()}" data-act="newAcc"><b>+</b>Добавить счёт (карта, наличные…) — необязательно</button>`;
     return h;
   }
   function vHist() {
@@ -856,25 +885,43 @@ table.motion th{color:var(--grey);font-weight:500}
   function drawSheet() {
     const f = form, h = [];
     if (f.kind === 'tx') {
-      const inc = f.t === 'inc', locked = !!f.ref;
-      h.push(`<h3><span>${f.id ? (inc ? 'Правка дохода' : 'Правка траты') : (inc ? 'Новый доход' : 'Новая трата')}</span><span class="h3r"><span class="cjk">${inc ? '收入' : '支出'}</span><button class="sh-x press" data-act="cancel" aria-label="Закрыть">✕</button></span></h3>`);
-      if (!f.id) h.push(`<div class="seg">${['exp', 'inc'].map(t => `<button class="${f.t === t ? 'on' : ''}" data-act="setT" data-v="${t}">${t === 'exp' ? 'Трата' : 'Доход'}</button>`).join('')}</div>`);
+      const inc = f.t === 'inc', tr = f.t === 'tr', locked = !!f.ref;
+      const title = tr ? (f.id ? 'Правка перевода' : 'Перевод') : f.id ? (inc ? 'Правка дохода' : 'Правка траты') : (inc ? 'Новый доход' : 'Новая трата');
+      h.push(`<h3><span>${title}</span><span class="h3r"><span class="cjk">${tr ? '转账' : inc ? '收入' : '支出'}</span><button class="sh-x press" data-act="cancel" aria-label="Закрыть">✕</button></span></h3>`);
+      // «Перевод» — когда счетов два и больше
+      const types = S.accounts.length >= 2 ? [['exp', 'Трата'], ['inc', 'Доход'], ['tr', 'Перевод']] : [['exp', 'Трата'], ['inc', 'Доход']];
+      if (!f.id) h.push(`<div class="seg">${types.map(([t, n]) => `<button class="${f.t === t ? 'on' : ''}" data-act="setT" data-v="${t}">${n}</button>`).join('')}</div>`);
       if (locked) h.push(f.ref.k === 'goal'
         ? `<p class="info">Взнос в цель «${esc(f.note)}». Его можно только удалить — накопленное уменьшится.</p>`
         : f.ref.k === 'loan' ? `<p class="info">Платёж по «${esc(f.note)}». Его можно только удалить — долг вернётся на ${fmtN(f.ref.princ || 0)}.</p>`
         : `<p class="info">Операция по плану: «${esc(f.note)}». Её можно только удалить — отметка в Плане снимется.</p>`);
       h.push(`<input class="inp big" data-f="amt" inputmode="decimal" placeholder="0" value="${esc(f.amt)}"${locked ? ' disabled' : ''}>`);
       if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
-      if (!locked) {
+      const accChips = (act, v) => `<div class="chips">${S.accounts.map(a => chip(a.id === v, act, a.id, `账 ${esc(a.name)}`)).join('')}</div>`;
+      if (!locked && tr) {
+        h.push(`<div class="f-lbl">Со счёта</div>${accChips('setAcc', f.acc)}<div class="f-lbl">На счёт</div>${accChips('setTo', f.to)}`);
+      }
+      if (!locked && !tr) {
+        if (S.accounts.length) h.push(`<div class="f-lbl">Счёт</div>${accChips('setAcc', f.acc)}`);
         h.push(`<div class="f-lbl">Категория</div><div class="chips">${userCats(f.t).map(c => chip(c.id === f.cat && !f.newCat, 'setCat', c.id, `${ICON[c.name] || '支'} ${SHORT[c.name] || c.name}`)).join('')}</div>`);
         h.push(`<input class="inp" data-f="newCat" placeholder="или впиши свою категорию" value="${esc(f.newCat)}">`);
         if (!inc) h.push(`<div class="f-lbl">На кого</div><div class="chips">${S.persons.map(p => chip(p === f.who, 'setWho', p, esc(p))).join('')}</div>`);
+      }
+      if (!locked) {
         const td = today();
         h.push(`<div class="f-lbl">Дата</div><div class="date-row"><span class="chip" data-act="dayBack">‹</span><span class="d${f.d === td ? ' today' : ''}" data-act="dayToday">${formDay(f.d)}</span>${f.d < td ? '<span class="chip" data-act="dayFwd">›</span>' : ''}</div>`);
         h.push(`<div class="f-lbl">Заметка</div><input class="inp" data-f="note" placeholder="необязательно" value="${esc(f.note)}">`);
         h.push('<div style="height:12px"></div>' + btn('primary', 'saveTx', 'Записать', '<span class="arrows">⇲⇲</span>'));
       }
       if (f.id) h.push(btn('ghost', 'delTx', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">删除</span>'));
+    } else if (f.kind === 'acc') {
+      h.push(`<h3><span>${f.id ? 'Правка счёта' : 'Новый счёт'}</span><span class="h3r"><span class="cjk">账户</span><button class="sh-x press" data-act="cancel" aria-label="Закрыть">✕</button></span></h3>`);
+      h.push(`<div class="f-lbl">Название</div><input class="inp" data-f="name" placeholder="Карта, наличные, вклад…" value="${esc(f.name)}">`);
+      h.push(`<div class="f-lbl">Сколько на счёте сейчас, ₽</div><input class="inp" data-f="bal" inputmode="decimal" placeholder="0" value="${esc(f.bal)}">`);
+      h.push(`<p class="info">Дальше баланс меняют операции с этим счётом. Разошлось с банком — впиши здесь, сколько на самом деле. Первый счёт подставляется в новые траты и в «Оплатил».</p>`);
+      if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
+      h.push('<div style="height:12px"></div>' + btn('primary', 'saveAcc', 'Сохранить', '<span class="arrows">⇲⇲</span>'));
+      if (f.id) h.push(btn('ghost', 'delAcc', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">删除</span>'));
     } else if (f.kind === 'goal') {
       h.push(`<h3><span>${f.id ? 'Правка цели' : 'Новая цель'}</span><span class="h3r"><span class="cjk">目标</span><button class="sh-x press" data-act="cancel" aria-label="Закрыть">✕</button></span></h3>`);
       h.push(`<div class="f-lbl">Цель</div><input class="inp" data-f="name" placeholder="Накопить 100к, путешествие в Китай…" value="${esc(f.name)}">`);
@@ -923,14 +970,14 @@ table.motion th{color:var(--grey);font-weight:500}
       h.push(`<div class="f-lbl">Резервная копия</div>`);
       if (!f.pending) {
         h.push(`<p class="info">Один файл со всеми данными: план, категории, операции. Лежит там, куда сохранишь (Загрузки, Диск). Приложение никуда его не отправляет.</p>`);
-        h.push(`<div class="stat-row"><span>Операций</span><span>${S.tx.length}</span></div><div class="stat-row"><span>Строк плана</span><span>${S.rec.length}</span></div><div class="stat-row"><span>Кредитов и долгов</span><span>${S.loans.length}</span></div>`);
+        h.push(`<div class="stat-row"><span>Операций</span><span>${S.tx.length}</span></div><div class="stat-row"><span>Строк плана</span><span>${S.rec.length}</span></div><div class="stat-row"><span>Кредитов и долгов</span><span>${S.loans.length}</span></div><div class="stat-row"><span>Счетов</span><span>${S.accounts.length}</span></div>`);
         if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
         h.push('<div style="height:12px"></div>' + btn('primary', 'exportJson', 'Сохранить копию', '<span class="arrows">⇲⇲</span>'));
         h.push(btn('ghost', 'pickImport', 'Восстановить из копии', '<span class="cjk">恢复</span>'));
       } else {
         const m = mergePlan(f.pending), n = m.tx.length + m.rec.length;
         h.push(`<p class="info">Копия от ${esc(f.pending.when)}. Добавится только то, чего нет в телефоне. Что уже есть, не меняется.</p>`);
-        h.push(`<div class="stat-row"><span>Новых операций</span><span>${m.tx.length}</span></div><div class="stat-row"><span>Новых строк плана</span><span>${m.rec.length}</span></div><div class="stat-row"><span>Новых кредитов и долгов</span><span>${m.loans.length}</span></div><div class="stat-row"><span>Новых категорий</span><span>${m.cats.length}</span></div><div class="stat-row"><span>Уже есть, пропущу</span><span>${f.pending.tx.length - m.tx.length + f.pending.rec.length - m.rec.length}</span></div>`);
+        h.push(`<div class="stat-row"><span>Новых операций</span><span>${m.tx.length}</span></div><div class="stat-row"><span>Новых строк плана</span><span>${m.rec.length}</span></div><div class="stat-row"><span>Новых кредитов и долгов</span><span>${m.loans.length}</span></div><div class="stat-row"><span>Новых счетов</span><span>${m.accounts.length}</span></div><div class="stat-row"><span>Новых категорий</span><span>${m.cats.length}</span></div><div class="stat-row"><span>Уже есть, пропущу</span><span>${f.pending.tx.length - m.tx.length + f.pending.rec.length - m.rec.length}</span></div>`);
         if (n) h.push('<div style="height:12px"></div>' + btn('primary', 'doImport', 'Добавить из копии', '<span class="arrows">⇲⇲</span>'));
         else h.push(`<p class="info">Всё из этой копии уже есть в телефоне.</p>`);
       }
@@ -949,7 +996,7 @@ table.motion th{color:var(--grey);font-weight:500}
     sheet.innerHTML = h.join('');
     shapeButtons(sheet);
   }
-  const newTx = () => ({ kind: 'tx', t: 'exp', amt: '', cat: userCats('exp')[0]?.id, newCat: '', who: S.persons[0], d: today(), note: '' });
+  const newTx = () => ({ kind: 'tx', t: 'exp', amt: '', cat: userCats('exp')[0]?.id, newCat: '', who: S.persons[0], d: today(), note: '', acc: defAcc(), to: S.accounts[1]?.id || '' });
 
   function toast(t) {
     const el = document.createElement('div'); el.className = 'toast'; el.textContent = t; screen.appendChild(el);
@@ -963,7 +1010,7 @@ table.motion th{color:var(--grey);font-weight:500}
     S.tx.slice().sort((a, z) => a.d.localeCompare(z.d) || a.ts - z.ts).forEach(t => (months[t.d.slice(0, 7)] ||= []).push(t));
     return JSON.stringify({
       app: 'kassa', format: BACKUP_FORMAT, exported: new Date().toISOString(),
-      cfg: { accounts: [], cats: S.cats, persons: S.persons, rates: {}, rec: S.rec, loans: S.loans, goals: S.goals },
+      cfg: { accounts: S.accounts, cats: S.cats, persons: S.persons, rates: {}, rec: S.rec, loans: S.loans, goals: S.goals },
       months,
     }, null, 1);
   }
@@ -980,7 +1027,7 @@ table.motion th{color:var(--grey);font-weight:500}
     const okTx = t => t && typeof t.id === 'string' && okDate(t.d) && ['exp', 'inc', 'tr'].includes(t.t) && okAmt(t.amt) && okAmt(t.rub);
     const bad = tx.filter(t => !okTx(t)).length;
     if (bad) return `В файле ${bad} повреждённых операций — восстановление отменено.`;
-    return { cats: c.cats, persons: Array.isArray(c.persons) && c.persons.length ? c.persons : defaults().persons, rec: Array.isArray(c.rec) ? c.rec : [], loans: Array.isArray(c.loans) ? c.loans : [], goals: Array.isArray(c.goals) ? c.goals : [], tx,
+    return { cats: c.cats, persons: Array.isArray(c.persons) && c.persons.length ? c.persons : defaults().persons, rec: Array.isArray(c.rec) ? c.rec : [], accounts: Array.isArray(c.accounts) ? c.accounts : [], loans: Array.isArray(c.loans) ? c.loans : [], goals: Array.isArray(c.goals) ? c.goals : [], tx,
       when: o.exported ? new Date(o.exported).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : 'неизвестной даты' };
   }
   // Объединение: добавляем то, чего нет (по id). Категория из файла с тем же названием и типом, что уже есть, — склеивается с существующей.
@@ -997,6 +1044,7 @@ table.motion th{color:var(--grey);font-weight:500}
       persons: p.persons.filter(x => !S.persons.includes(x)),
       rec: p.rec.filter(r => !has(S.rec, r.id)).map(fix),
       loans: p.loans.filter(l => !has(S.loans, l.id)),
+      accounts: p.accounts.filter(a => !has(S.accounts, a.id)),
       goals: p.goals.filter(g => !has(S.goals, g.id)),
       tx: p.tx.filter(t => !has(S.tx, t.id)).map(fix),
     };
@@ -1028,7 +1076,7 @@ table.motion th{color:var(--grey);font-weight:500}
       // кредит, удалённый в телефоне и вернувшийся из копии: вычесть платежи, сделанные после копии (они остались в истории)
       const fileTx = new Set(form.pending.tx.map(t => t.id));
       m.loans.forEach(l => S.tx.forEach(t => { if (t.ref && t.ref.k === 'loan' && t.ref.id === l.id && !fileTx.has(t.id)) l.balance = Math.max(0, Math.round((l.balance - (t.ref.princ || 0)) * 100) / 100); }));
-      S.cats.push(...m.cats); S.persons.push(...m.persons); S.rec.push(...m.rec); S.loans.push(...m.loans); S.goals.push(...m.goals); S.tx.push(...m.tx);
+      S.cats.push(...m.cats); S.persons.push(...m.persons); S.rec.push(...m.rec); S.loans.push(...m.loans); S.accounts.push(...m.accounts); S.goals.push(...m.goals); S.tx.push(...m.tx);
       save(); closeSheet(); render(true); toast(`Добавлено: ${m.tx.length} операций, ${m.rec.length} строк плана`);
     },
     goPlan() { tab = 'plan'; render(true); },
@@ -1038,14 +1086,32 @@ table.motion th{color:var(--grey);font-weight:500}
     editRec(el) { const r = S.rec.find(x => x.id === el.dataset.id); openSheet({ kind: 'rec', id: r.id, type: r.type, name: r.name, amt: String(r.amt), day: String(r.day), cat: r.cat }); },
     postRec(el) {
       const r = S.rec.find(x => x.id === el.dataset.id);
-      S.tx.push({ id: uid(), ts: Date.now(), t: r.type, amt: r.amt, cur: 'RUB', rub: r.amt, cat: r.cat, acc: '', to: '', who: r.type === 'exp' ? S.persons[0] : '', d: today(), note: r.name, ref: { k: 'rec', id: r.id } });
+      S.tx.push({ id: uid(), ts: Date.now(), t: r.type, amt: r.amt, cur: 'RUB', rub: r.amt, cat: r.cat, acc: defAcc(), to: '', who: r.type === 'exp' ? S.persons[0] : '', d: today(), note: r.name, ref: { k: 'rec', id: r.id } });
       save(); render(false); toast(r.type === 'inc' ? 'Отмечено: получено' : 'Отмечено: оплачено');
     },
     editTx(el) {
       const t = S.tx.find(x => x.id === el.dataset.id);
-      openSheet({ kind: 'tx', id: t.id, t: t.t, amt: String(t.amt), cat: t.cat, newCat: '', who: t.who || S.persons[0], d: t.d, note: t.note || '', ref: t.ref });
+      openSheet({ kind: 'tx', id: t.id, t: t.t, amt: String(t.amt), cat: t.cat, newCat: '', who: t.who || S.persons[0], d: t.d, note: t.note || '', ref: t.ref, acc: t.acc || '', to: t.to || '' });
     },
-    setT(el) { form.t = el.dataset.v; form.cat = userCats(form.t)[0]?.id; form.newCat = ''; form.err = ''; drawSheet(); },
+    setT(el) { form.t = el.dataset.v; form.cat = form.t === 'tr' ? '' : userCats(form.t)[0]?.id; form.newCat = ''; form.err = ''; drawSheet(); },
+    setAcc(el) { form.acc = el.dataset.v; form.err = ''; drawSheet(); },
+    setTo(el) { form.to = el.dataset.v; form.err = ''; drawSheet(); },
+    newAcc() { openSheet({ kind: 'acc', name: '', bal: '' }); },
+    editAcc(el) { const a = S.accounts.find(x => x.id === el.dataset.id); openSheet({ kind: 'acc', id: a.id, name: a.name, bal: String(accBal(a)).replace('.', ',') }); },
+    saveAcc() {
+      const f = form, bal = parseAmt(f.bal || '0');
+      if (!f.name.trim()) { f.err = 'Впиши название'; return drawSheet(); }
+      // вводят текущий баланс, храним остаток на старте (init), как в kassa.html
+      const old = f.id && S.accounts.find(x => x.id === f.id), moved = old ? accBal(old) - old.init : 0;
+      const a = { id: f.id || uid(), name: f.name.trim(), cur: 'RUB', init: Math.round((bal - moved) * 100) / 100 };
+      S.accounts = old ? S.accounts.map(x => x.id === a.id ? a : x) : S.accounts.concat(a);
+      save(); closeSheet(); render(false);
+    },
+    delAcc() {
+      if (!form.confirm) { form.confirm = true; return drawSheet(); }
+      // операции остаются в истории с пометкой «счёт удалён»
+      S.accounts = S.accounts.filter(x => x.id !== form.id); save(); closeSheet(); render(false);
+    },
     setCat(el) { form.cat = el.dataset.v; form.newCat = ''; form.err = ''; drawSheet(); },
     setWho(el) { form.who = el.dataset.v; drawSheet(); },
     dayBack() { form.d = addDays(form.d, -1); drawSheet(); },
@@ -1055,6 +1121,13 @@ table.motion th{color:var(--grey);font-weight:500}
     saveTx() {
       const f = form, amt = parseAmt(f.amt);
       if (amt <= 0) { f.err = 'Введи сумму больше нуля'; return drawSheet(); }
+      if (f.t === 'tr') {
+        if (!f.acc || !f.to || f.acc === f.to) { f.err = 'Выбери два разных счёта'; return drawSheet(); }
+        const old = f.id && S.tx.find(x => x.id === f.id);
+        const tx = { id: f.id || uid(), ts: old ? old.ts : Date.now(), t: 'tr', amt, cur: 'RUB', rub: amt, cat: '', acc: f.acc, to: f.to, who: '', d: f.d, note: (f.note || '').trim() };
+        S.tx = S.tx.filter(x => x.id !== tx.id).concat(tx);
+        save(); closeSheet(); render(false); return;
+      }
       let catId = f.cat;
       const nc = (f.newCat || '').trim();
       if (nc) {
@@ -1063,7 +1136,7 @@ table.motion th{color:var(--grey);font-weight:500}
       }
       if (!catId) { f.err = 'Выбери или впиши категорию'; return drawSheet(); }
       const old = f.id && S.tx.find(x => x.id === f.id);
-      const tx = { id: f.id || uid(), ts: old ? old.ts : Date.now(), t: f.t, amt, cur: 'RUB', rub: amt, cat: catId, acc: '', to: '', who: f.t === 'exp' ? f.who : '', d: f.d, note: (f.note || '').trim() };
+      const tx = { id: f.id || uid(), ts: old ? old.ts : Date.now(), t: f.t, amt, cur: 'RUB', rub: amt, cat: catId, acc: f.acc || '', to: '', who: f.t === 'exp' ? f.who : '', d: f.d, note: (f.note || '').trim() };
       S.tx = S.tx.filter(x => x.id !== tx.id).concat(tx);
       save(); closeSheet(); render(false);
       $$('.scroll .num').forEach(el => scramble(el, +el.dataset.val));
@@ -1099,7 +1172,7 @@ table.motion th{color:var(--grey);font-weight:500}
       const f = form, amt = parseAmt(f.amt), g = S.goals.find(x => x.id === f.id);
       if (amt <= 0) { f.err = 'Введи сумму больше нуля'; return drawSheet(); }
       // взнос — расход в системной категории «Накопления» со ссылкой на цель (как topGoal в kassa.html)
-      S.tx.push({ id: uid(), ts: Date.now(), t: 'exp', amt, cur: 'RUB', rub: amt, cat: 'c_goal', acc: '', to: '', who: S.persons[0], d: today(), note: g.name, ref: { k: 'goal', id: g.id } });
+      S.tx.push({ id: uid(), ts: Date.now(), t: 'exp', amt, cur: 'RUB', rub: amt, cat: 'c_goal', acc: defAcc(), to: '', who: S.persons[0], d: today(), note: g.name, ref: { k: 'goal', id: g.id } });
       g.saved += amt;
       save(); closeSheet(); render(false); toast(g.saved >= g.target ? 'Цель достигнута!' : 'Отложено');
     },
@@ -1137,7 +1210,7 @@ table.motion th{color:var(--grey);font-weight:500}
       // как payLoan в kassa.html: сначала проценты, остальное — в долг
       const princ = Math.round(Math.min(l.balance, Math.max(0, amt - loanInt(l))) * 100) / 100;
       l.balance = Math.round((l.balance - princ) * 100) / 100;
-      S.tx.push({ id: uid(), ts: Date.now(), t: 'exp', amt, cur: 'RUB', rub: amt, cat: 'c_loan', acc: '', to: '', who: S.persons[0], d: f.d, note: l.name, ref: { k: 'loan', id: l.id, princ } });
+      S.tx.push({ id: uid(), ts: Date.now(), t: 'exp', amt, cur: 'RUB', rub: amt, cat: 'c_loan', acc: defAcc(), to: '', who: S.persons[0], d: f.d, note: l.name, ref: { k: 'loan', id: l.id, princ } });
       save(); closeSheet(); render(false); toast(l.balance <= 0 ? 'Долг закрыт!' : 'Долг уменьшился на ' + fmtN(princ) + ' ₽');
     },
     saveRec() {
@@ -1183,9 +1256,14 @@ table.motion th{color:var(--grey);font-weight:500}
     T(addDays(td, -3), 'inc', 1500, c('Подработка'), 'перевод за макет');
     S.goals = [{ id: uid(), name: 'Накопить 100к', target: 100000, saved: 35000, monthly: 0 }, { id: uid(), name: 'Путешествие в Китай', target: 60000, saved: 0, monthly: 0, by: td.slice(0, 4) + '-12-30' }];
     T(addDays(td, -Math.min(dn - 1, 2)), 'exp', 5000, 'c_goal', 'Накопить 100к', { k: 'goal', id: S.goals[0].id });
+    S.accounts = [{ id: uid(), name: 'Карта', cur: 'RUB', init: 0 }, { id: uid(), name: 'Наличные', cur: 'RUB', init: 1500 }];
+    T(addDays(td, -Math.min(dn - 1, 1)), 'tr', 3000, '', 'снял в банкомате'); S.tx[S.tx.length - 1].acc = S.accounts[0].id; S.tx[S.tx.length - 1].to = S.accounts[1].id;
     S.loans = [{ id: uid(), name: 'Кредит на машину', total: 450000, balance: 286000, pay: 9800, rate: 14.9, day: Math.min(28, dn + 6) },
       { id: uid(), name: 'Долг маме', total: 30000, balance: 21000, pay: 0, rate: 0, day: 1 }];
     T(addDays(td, -Math.min(dn - 1, 4)), 'exp', 3000, 'c_loan', 'Долг маме', { k: 'loan', id: S.loans[1].id, princ: 3000 });
+    // все операции примера — с карты; на карте сейчас 54 320
+    S.tx.forEach(t => { if (t.t !== 'tr') t.acc = S.accounts[0].id; });
+    S.accounts[0].init = Math.round((54320 - accBal(S.accounts[0])) * 100) / 100;
     save(); tab = 'home'; render(true);
   };
   $('#clearBtn').onclick = () => { S = defaults(); save(); render(true); };
