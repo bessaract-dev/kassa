@@ -485,10 +485,10 @@ table.motion th{color:var(--grey);font-weight:500}
     const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), left = dim - now.getDate() + 1;
     const tx = monthTx(k);
     const planInc = sum(S.rec.filter(r => r.type === 'inc'), r => r.amt);
-    // кредиты появятся в 0.6. Цели — копилка (решение 2026-10-22): взноса в месяц нет,
-    // а отложенное уменьшает «свободно до конца месяца» (varSpent), но не «потрачено сегодня».
-    const goalsMonthly = 0;
-    const fixed = sum(S.rec.filter(r => r.type === 'exp'), r => r.amt);
+    // кредиты появятся в 0.6. Цели (решение 2026-10-22): отложенное уменьшает «свободно до конца месяца»
+    // (varSpent), но не «потрачено сегодня». У цели с датой ещё не отложенная часть взноса месяца резервируется в fixed.
+    const goalsMonthly = sum(S.goals, g => goalPlan(g).reserve);
+    const fixed = sum(S.rec.filter(r => r.type === 'exp'), r => r.amt) + goalsMonthly;
     const free0 = x => !x.ref;
     const toGoal = x => x.ref && x.ref.k === 'goal';
     const varSpent = sum(tx.filter(x => x.t === 'exp' && (free0(x) || toGoal(x))), x => x.rub);
@@ -498,6 +498,15 @@ table.motion th{color:var(--grey);font-weight:500}
     const dayLimit = (free + spentToday) / left;
     return { k, dim, left, planInc, fixed, goalsMonthly, varSpent, spentToday, extraInc, free, dayLimit, leftToday: dayLimit - spentToday,
       spentAllToday: sum(tx.filter(x => x.t === 'exp' && x.d === td), x => x.rub) };
+  }
+  // взнос в цель с датой: недостающее на начало месяца делим на месяцы до даты, включая текущий
+  function goalPlan(g) {
+    const td = today(), month = sum(monthTx(td.slice(0, 7)).filter(t => t.ref && t.ref.k === 'goal' && t.ref.id === g.id), t => t.rub);
+    if (!g.by) return { month, plan: 0, reserve: 0, months: 0 };
+    const need = Math.max(0, g.target - (g.saved - month));
+    const months = Math.max(1, (+g.by.slice(0, 4) * 12 + +g.by.slice(5, 7)) - (+td.slice(0, 4) * 12 + +td.slice(5, 7)) + 1);
+    const plan = Math.ceil(need / months);
+    return { month, plan, reserve: Math.max(0, plan - month), months };
   }
   const paidTx = id => monthTx(today().slice(0, 7)).find(t => t.ref && t.ref.k === 'rec' && t.ref.id === id);
 
@@ -577,9 +586,9 @@ table.motion th{color:var(--grey);font-weight:500}
   let planF = 'all';
   function goalRow(g) {
     const p = g.target ? Math.min(100, g.saved / g.target * 100) : 0, done = g.saved >= g.target;
-    const k = today().slice(0, 7), month = sum(monthTx(k).filter(t => t.ref && t.ref.k === 'goal' && t.ref.id === g.id), t => t.rub);
+    const { month, plan } = goalPlan(g), by = g.by ? `к ${g.by.slice(8, 10)}.${g.by.slice(5, 7)}.${g.by.slice(0, 4)}` : '';
     const meta = done ? '<span class="st ok">✓ цель достигнута</span>'
-      : `${fmtN(g.saved)} из ${fmtN(g.target)} · ${Math.floor(p)}%` + (month ? ` · в этом месяце +${fmtN(month)}` : '');
+      : `${fmtN(g.saved)} из ${fmtN(g.target)} · ${Math.floor(p)}%` + (by ? `<br>${by} · за месяц ${fmtN(month)} из ${fmtN(plan)}` : month ? ` · в этом месяце +${fmtN(month)}` : '');
     const btn = done ? '' : `<button class="mini press" data-act="topGoal" data-id="${g.id}">Отложить</button>`;
     return `<div class="panel dark shape-c op op-goal${rv()}" data-act="editGoal" data-id="${g.id}"><div class="ic">貯</div><div><div class="n">${esc(g.name)}</div><div class="m">${meta}</div><div class="prog"><i style="width:${p}%"></i></div></div>${btn}</div>`;
   }
@@ -588,7 +597,7 @@ table.motion th{color:var(--grey);font-weight:500}
     const recExp = b.fixed - b.goalsMonthly, rest = b.planInc - b.fixed, paidN = exp.filter(r => paidTx(r.id)).length;
     let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Остаток на месяц', '余り')}
       <div class="mid"><span class="num" data-val="${rest}">${fmtN(rest)}</span> ₽</div>
-      <div class="sub" style="margin-top:4px">столько остаётся на ежедневные траты</div>
+      <div class="sub" style="margin-top:4px">${rest < 0 ? 'не хватает: уменьши цель или сдвинь дату' : 'столько остаётся на ежедневные траты'}</div>
       <div class="split"><div><span>Доходы</span><span>+${fmtN(b.planInc)}</span></div><div><span>Обязательные платежи</span><span>−${fmtN(recExp)}</span></div>${b.goalsMonthly ? `<div><span>На цели</span><span>−${fmtN(b.goalsMonthly)}</span></div>` : ''}</div></div>`;
     h += `<div class="seg${rv()}">${[['inc', 'Доходы'], ['exp', 'Расходы'], ['all', 'Все']].map(([k, t]) => `<button class="${planF === k ? 'on' : ''}" data-act="planF" data-v="${k}">${t}</button>`).join('')}</div>`;
     const addInc = `<button class="add-row press${rv()}" data-act="newRec" data-type="inc"><b>+</b>Добавить доход (зарплата, аванс…)</button>`;
@@ -697,7 +706,8 @@ table.motion th{color:var(--grey);font-weight:500}
       h.push(`<div class="f-lbl">Цель</div><input class="inp" data-f="name" placeholder="Накопить 100к, путешествие в Китай…" value="${esc(f.name)}">`);
       h.push(`<div class="f-lbl">Сумма цели, ₽</div><input class="inp" data-f="target" inputmode="decimal" placeholder="100 000" value="${esc(f.target)}">`);
       h.push(`<div class="f-lbl">Уже накоплено, ₽</div><input class="inp" data-f="saved" inputmode="decimal" placeholder="0" value="${esc(f.saved)}">`);
-      h.push(`<p class="info">Цель — копилка. Когда жмёшь «Отложить», сумма вычитается из «Свободно до конца месяца».</p>`);
+      h.push(`<div class="f-lbl">Накопить к дате</div><input class="inp" type="date" data-f="by" value="${esc(f.by)}">`);
+      h.push(`<p class="info">Без даты цель — копилка: на лимит влияет только то, что отложил. С датой приложение делит недостающее на месяцы до неё и заранее вычитает взнос месяца из «Свободно до конца месяца», так что лимит на день уже учитывает цель.</p>`);
       if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
       h.push('<div style="height:12px"></div>' + btn('primary', 'saveGoal', 'Сохранить', '<span class="arrows">⇲⇲</span>'));
       if (f.id) h.push(btn('ghost', 'delGoal', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">削除</span>'));
@@ -860,13 +870,14 @@ table.motion th{color:var(--grey);font-weight:500}
       S.tx = S.tx.filter(x => x.id !== form.id); save(); closeSheet(); render(false);
     },
     planF(el) { planF = el.dataset.v; render(false); },
-    newGoal() { openSheet({ kind: 'goal', name: '', target: '', saved: '', monthly: '' }); },
-    editGoal(el) { const g = S.goals.find(x => x.id === el.dataset.id); openSheet({ kind: 'goal', id: g.id, name: g.name, target: String(g.target), saved: String(g.saved), monthly: '' }); },
+    newGoal() { openSheet({ kind: 'goal', name: '', target: '', saved: '', by: '' }); },
+    editGoal(el) { const g = S.goals.find(x => x.id === el.dataset.id); openSheet({ kind: 'goal', id: g.id, name: g.name, target: String(g.target), saved: String(g.saved), by: g.by || '' }); },
     saveGoal() {
       const f = form, target = parseAmt(f.target), saved = parseAmt(f.saved || '0'), monthly = 0;
       if (!f.name.trim()) { f.err = 'Впиши, на что копишь'; return drawSheet(); }
       if (target <= 0) { f.err = 'Введи сумму цели больше нуля'; return drawSheet(); }
-      const g = { id: f.id || uid(), name: f.name.trim(), target, saved, monthly };
+      const by = /^\d{4}-\d{2}-\d{2}$/.test(f.by || '') ? f.by : '';
+      const g = { id: f.id || uid(), name: f.name.trim(), target, saved, monthly, by };
       S.goals = f.id ? S.goals.map(x => x.id === g.id ? g : x) : S.goals.concat(g);
       save(); closeSheet(); render(false);
     },
@@ -925,7 +936,7 @@ table.motion th{color:var(--grey);font-weight:500}
     for (let i = 1; i < Math.min(dn, 12); i++) { const [n, a] = daily[i % daily.length]; T(addDays(td, -i), 'exp', a, c(n), '', undefined, i % 4 === 0 ? 'Варя' : 'Я'); }
     T(td, 'exp', 540, c('Продукты'), 'Пятёрочка'); T(td, 'exp', 220, c('Кафе и рестораны'), 'кофе');
     T(addDays(td, -3), 'inc', 1500, c('Подработка'), 'перевод за макет');
-    S.goals = [{ id: uid(), name: 'Накопить 100к', target: 100000, saved: 35000, monthly: 0 }, { id: uid(), name: 'Путешествие в Китай', target: 250000, saved: 0, monthly: 0 }];
+    S.goals = [{ id: uid(), name: 'Накопить 100к', target: 100000, saved: 35000, monthly: 0 }, { id: uid(), name: 'Путешествие в Китай', target: 90000, saved: 0, monthly: 0, by: td.slice(0, 4) + '-12-30' }];
     T(addDays(td, -Math.min(dn - 1, 2)), 'exp', 5000, 'c_goal', 'Накопить 100к', { k: 'goal', id: S.goals[0].id });
     save(); tab = 'home'; render(true);
   };
