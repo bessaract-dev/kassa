@@ -347,7 +347,7 @@ table.motion th{color:var(--grey);font-weight:500}
         <button class="press" data-tab="hist"><span class="cjk">履歴</span>История</button>
         <button class="fab press" id="fab" aria-label="Добавить">+</button>
         <button class="press" data-tab="plan"><span class="cjk">計画</span>План</button>
-        <button class="press" data-tab="debt"><span class="cjk">負債</span>Долги</button>
+        <button class="press" data-tab="exp"><span class="cjk">支出</span>Расходы</button>
       </nav>
       <div class="scrim" id="scrim"></div>
       <div class="sheet" id="sheet"></div>
@@ -525,17 +525,18 @@ table.motion th{color:var(--grey);font-weight:500}
     return `<div class="panel dark shape-c op${rv()}" data-act="editTx" data-id="${t.id}"><div class="ic"${inc ? ' style="color:var(--ink);background:var(--lime)"' : ''}>${inc ? (ICON[catName(t.cat)] || '入') : icon(t.cat)}</div><div><div class="n">${esc(title)}</div><div class="m">${esc(meta)}</div></div><div class="a${inc ? ' pos' : ''}">${inc ? '+' : '−'}${fmtN(t.rub)}</div></div>`;
   }
   // строка плана: статус за этот месяц + кнопка «Оплатил/Получил»
-  function recRow(r, withBtn) {
+  // act — что по нажатию на строку: правка (по умолчанию) или переход во вкладку «Расходы»
+  function recRow(r, withBtn, act = 'editRec') {
     const p = paidTx(r.id), dnow = new Date().getDate(), inc = r.type === 'inc';
     const st = p ? `<span class="st ok">✓ ${inc ? 'получено' : 'оплачено'} ${+p.d.slice(8)}-го</span>`
       : r.day < dnow ? `<span class="st warn">срок был ${r.day}-го</span>` : `<span class="st wait">ждёт ${r.day}-го</span>`;
     const btn = withBtn && !p ? `<button class="mini press" data-act="postRec" data-id="${r.id}">${inc ? 'Получил' : 'Оплатил'}</button>` : '';
-    return `<div class="panel dark shape-c op${btn ? ' op4' : ''}${p ? ' paid' : ''}${rv()}" data-act="${withBtn ? 'editRec' : 'editRec'}" data-id="${r.id}"><div class="ic"${inc ? ' style="color:var(--ink);background:var(--lime)"' : ''}>${inc ? (ICON[catName(r.cat)] || '入') : icon(r.cat)}</div><div><div class="n">${esc(r.name)}</div><div class="m">${st}</div></div><div class="a${inc ? ' pos' : ''}">${inc ? '+' : '−'}${fmtN(r.amt)}</div>${btn}</div>`;
+    return `<div class="panel dark shape-c op${btn ? ' op4' : ''}${p ? ' paid' : ''}${rv()}" data-act="${act}" data-id="${r.id}"><div class="ic"${inc ? ' style="color:var(--ink);background:var(--lime)"' : ''}>${inc ? (ICON[catName(r.cat)] || '入') : icon(r.cat)}</div><div><div class="n">${esc(r.name)}</div><div class="m">${st}</div></div><div class="a${inc ? ' pos' : ''}">${inc ? '+' : '−'}${fmtN(r.amt)}</div>${btn}</div>`;
   }
   const byDay = r => r.slice().sort((a, b) => a.day - b.day);
 
   /* ---------- экраны ---------- */
-  const TABS = { home: ['Сегодня', '今日'], hist: ['История', '履歴'], plan: ['План', '計画'], debt: ['Долги', '負債'] };
+  const TABS = { home: ['Сегодня', '今日'], hist: ['История', '履歴'], plan: ['План', '計画'], exp: ['Расходы', '支出'] };
   let tab = 'home';
   function head() {
     const b = budget(), d = new Date(), [t, c] = TABS[tab];
@@ -573,8 +574,12 @@ table.motion th{color:var(--grey);font-weight:500}
   }
   function vHist() {
     const k = today().slice(0, 7), tx = monthTx(k), exp = sum(tx.filter(t => t.t === 'exp'), t => t.rub), inc = sum(tx.filter(t => t.t === 'inc'), t => t.rub);
-    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:20px">${lbl('Месяц', '今月')}
-      <div class="mid">−<span class="num" data-val="${exp}">${fmtN(exp)}</span> ₽</div><div class="sub" style="margin-top:6px">расходы · доходы +${fmtN(inc)}</div></div>`;
+    // плашка: остаток (= «Свободно до конца месяца»), из чего он складывается
+    const b = budget(), due = sum(S.rec.filter(r => r.type === 'exp' && !paidTx(r.id)), r => r.amt);
+    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Остаток на месяц', '今月')}
+      <div class="mid"><span class="num" data-val="${b.free}">${fmtN(b.free)}</span> ₽</div>
+      <div class="sub" style="margin-top:4px">свободно до конца месяца</div>
+      <div class="split"><div><span>Доходы</span><span>+${fmtN(b.planInc + b.extraInc)}</span></div><div><span>Потрачено</span><span>−${fmtN(exp)}</span></div><div><span>Предстоит: обязательные</span><span>−${fmtN(due)}</span></div>${b.goalsMonthly ? `<div><span>Предстоит: на цели</span><span>−${fmtN(b.goalsMonthly)}</span></div>` : ''}</div></div>`;
     if (!tx.length) return h + empty('空', 'В этом месяце операций пока нет.');
     const days = [...new Set(tx.map(t => t.d))].sort().reverse();
     days.forEach(d => {
@@ -602,24 +607,40 @@ table.motion th{color:var(--grey);font-weight:500}
       <div class="split"><div><span>Доходы</span><span>+${fmtN(b.planInc)}</span></div><div><span>Обязательные платежи</span><span>−${fmtN(recExp)}</span></div>${b.goalsMonthly ? `<div><span>На цели</span><span>−${fmtN(b.goalsMonthly)}</span></div>` : ''}</div></div>`;
     h += `<div class="seg${rv()}">${[['inc', 'Доходы'], ['exp', 'Расходы'], ['all', 'Все']].map(([k, t]) => `<button class="${planF === k ? 'on' : ''}" data-act="planF" data-v="${k}">${t}</button>`).join('')}</div>`;
     const addInc = `<button class="add-row press${rv()}" data-act="newRec" data-type="inc"><b>+</b>Добавить доход (зарплата, аванс…)</button>`;
-    const addExp = `<button class="add-row press${rv()}" data-act="newRec" data-type="exp"><b>+</b>Добавить платёж (аренда, связь…)</button>`;
-    if (planF === 'inc') h += opsH('収入', 'Постоянные доходы', '+' + fmtN(b.planInc)) + inc.map(r => recRow(r, true)).join('') + addInc;
-    else if (planF === 'exp') h += opsH('支払', 'Обязательные платежи', `${paidN}/${exp.length} оплачено`) + exp.map(r => recRow(r, true)).join('') + addExp;
-    else h += opsH('暦', 'По числам', `+${fmtN(b.planInc)} / −${fmtN(recExp)}`) + byDay(S.rec).map(r => recRow(r, true)).join('') + addInc + addExp;
+    // обязательные платежи в «Плане» только для обзора: добавляются, правятся и оплачиваются во вкладке «Расходы»
+    const goExp = `<button class="add-row press${rv()}" data-act="goExp"><b>→</b>Платежи меняются во вкладке «Расходы»</button>`;
+    const row = r => r.type === 'inc' ? recRow(r, true) : recRow(r, false, 'goExp');
+    if (planF === 'inc') h += opsH('収入', 'Постоянные доходы', '+' + fmtN(b.planInc)) + inc.map(row).join('') + addInc;
+    else if (planF === 'exp') h += opsH('支払', 'Обязательные платежи', `${paidN}/${exp.length} оплачено`) + exp.map(row).join('') + goExp;
+    else h += opsH('暦', 'По числам', `+${fmtN(b.planInc)} / −${fmtN(recExp)}`) + byDay(S.rec).map(row).join('') + addInc + goExp;
     const goalsLeft = S.goals.filter(g => g.saved < g.target).length;
     h += opsH('目標', 'Цели', S.goals.length ? `${goalsLeft} в работе` : '');
     h += S.goals.map(goalRow).join('');
     h += `<button class="add-row press${rv()}" data-act="newGoal"><b>+</b>Добавить цель (накопить 100к, поездка…)</button>`;
-    h += `<p class="info${rv()}">«Оплатил» / «Получил» записывает операцию на сегодня с суммой из плана. «Отложить» добавляет взнос в цель. Ошибся — удали операцию в Истории, отметка снимется.</p>`;
+    h += `<p class="info${rv()}">«Получил» записывает доход на сегодня с суммой из плана. «Отложить» добавляет взнос в цель. Ошибся — удали операцию в Истории, отметка снимется.</p>`;
     return h;
   }
-  const vDebt = () => `<div class="panel dark shape-c${rv()}" style="padding:16px">${lbl('В разработке', '工事中')}<p style="margin-top:10px">Кредиты и долги с графиком и процентами — версия 0.6. Цели накоплений — во вкладке «План».</p></div>`;
+  // «Расходы»: обязательные платежи (добавить, поправить, «Оплатил»), дальше — кредиты и долги
+  function vExp() {
+    const exp = byDay(S.rec.filter(r => r.type === 'exp')), paid = exp.filter(r => paidTx(r.id));
+    const total = sum(exp, r => r.amt), paidSum = sum(paid, r => paidTx(r.id).rub), due = sum(exp.filter(r => !paidTx(r.id)), r => r.amt);
+    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Обязательные в месяц', '支払')}
+      <div class="mid"><span class="num" data-val="${total}">${fmtN(total)}</span> ₽</div>
+      <div class="sub" style="margin-top:4px">аренда, связь, подписки — каждый месяц</div>
+      <div class="split"><div><span>Оплачено (${paid.length})</span><span>−${fmtN(paidSum)}</span></div><div><span>Предстоит (${exp.length - paid.length})</span><span>−${fmtN(due)}</span></div></div></div>`;
+    h += opsH('支払', 'Обязательные платежи', `${paid.length}/${exp.length} оплачено`) + exp.map(r => recRow(r, true)).join('');
+    h += `<button class="add-row press${rv()}" data-act="newRec" data-type="exp"><b>+</b>Добавить платёж (аренда, связь…)</button>`;
+    h += opsH('債', 'Кредиты и долги', '');
+    h += `<div class="panel dark shape-c${rv()}" style="padding:16px">${lbl('В разработке', '工事中')}<p style="margin-top:10px">Кредиты и долги с графиком платежей и процентами — следующая версия.</p></div>`;
+    h += `<p class="info${rv()}">«Оплатил» записывает трату на сегодня с суммой платежа. Ошибся — удали операцию в Истории, отметка снимется.</p>`;
+    return h;
+  }
 
   /* ---------- отрисовка ---------- */
   function render(animate) {
     anim = animate; ri = 0;
     const top = scroll.scrollTop;
-    scroll.innerHTML = head() + { home: vHome, hist: vHist, plan: vPlan, debt: vDebt }[tab]();
+    scroll.innerHTML = head() + { home: vHome, hist: vHist, plan: vPlan, exp: vExp }[tab]();
     $$('.nav [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     decorate(scroll);
     if (animate) { scroll.scrollTop = 0; setTimeout(() => $$('.scroll .num').forEach(el => scramble(el, +el.dataset.val)), 120); }
@@ -831,6 +852,7 @@ table.motion th{color:var(--grey);font-weight:500}
       save(); closeSheet(); render(true); toast(`Добавлено: ${m.tx.length} операций, ${m.rec.length} строк плана`);
     },
     goPlan() { tab = 'plan'; render(true); },
+    goExp() { tab = 'exp'; render(true); },
     newRec(el) { const t = el.dataset.type; openSheet({ kind: 'rec', type: t, name: '', amt: '', day: '', cat: userCats(t)[t === 'exp' ? 3 : 0]?.id }); },
     editRec(el) { const r = S.rec.find(x => x.id === el.dataset.id); openSheet({ kind: 'rec', id: r.id, type: r.type, name: r.name, amt: String(r.amt), day: String(r.day), cat: r.cat }); },
     postRec(el) {
