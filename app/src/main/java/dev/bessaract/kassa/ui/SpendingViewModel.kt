@@ -19,6 +19,8 @@ import dev.bessaract.kassa.core.calc.spending
 import dev.bessaract.kassa.core.model.BASE_CURRENCY
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
+import dev.bessaract.kassa.core.model.Goal
+import dev.bessaract.kassa.core.model.SystemCategories
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.RefKind
 import dev.bessaract.kassa.core.model.Tx
@@ -60,6 +62,8 @@ data class SpendingState(
     val persons: List<String>,
     /** Строки «Плана»: постоянные доходы и обязательные платежи. */
     val rec: List<Recurring> = emptyList(),
+    /** Цели накоплений. */
+    val goals: List<Goal> = emptyList(),
     /** Операции текущего месяца (для статусов плана и поиска операции при правке). */
     val monthTx: List<Tx> = emptyList(),
     val budget: Budget,
@@ -92,9 +96,18 @@ sealed interface BackupUi {
     data class Saved(val count: Int) : BackupUi
     /** Файл прочитан: что добавится. when — когда сделана копия, по-человечески. */
     data class Ready(val plan: MergePlan, val total: Int, val whenText: String) : BackupUi
-    data class Added(val tx: Int, val rec: Int) : BackupUi
+    data class Added(val tx: Int, val rec: Int, val goals: Int = 0) : BackupUi
     data class Error(val message: String) : BackupUi
 }
+
+/** Черновик цели. id = null — новая. by — дата «накопить к» или null. */
+data class GoalDraft(
+    val id: String?,
+    val name: String,
+    val target: Long,
+    val saved: Long,
+    val by: LocalDate?,
+)
 
 /** Черновик строки плана. id = null — новая. */
 data class RecDraft(
@@ -119,9 +132,9 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         today.flatMapLatest { d -> repo.monthTx(monthKey(d)).map { d to it } },
         repo.categories,
         repo.persons,
-        repo.recurring,
+        combine(repo.recurring, repo.goals, ::Pair),
         repo.txCount,
-    ) { (d, tx), cats, persons, rec, total ->
+    ) { (d, tx), cats, persons, (rec, goals), total ->
         SpendingState(
             today = d,
             spending = spending(tx, d),
@@ -130,9 +143,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             allCats = cats.associateBy { it.id },
             persons = persons,
             rec = rec,
+            goals = goals,
             monthTx = tx,
-            // кредитов и целей ещё нет (0.6–0.7) — в обязательные пока входит только план
-            budget = budget(rec, emptyList(), emptyList(), tx, d),
+            // кредитов ещё нет — в обязательные входят план и взносы на цели с датой
+            budget = budget(rec, emptyList(), goals, tx, d),
             txTotal = total,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -259,7 +273,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _backup.value = try {
                 repo.applyMerge(ready.plan)
-                BackupUi.Added(ready.plan.tx.size, ready.plan.rec.size)
+                BackupUi.Added(ready.plan.tx.size, ready.plan.rec.size, ready.plan.goals.size)
             } catch (e: Exception) {
                 BackupUi.Error("Не удалось добавить данные — ничего не изменилось.")
             }
@@ -292,5 +306,33 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteRec(id: String) {
         viewModelScope.launch { repo.deleteRecurring(id) }
+    }
+
+    /** При правке накопленное берётся из формы: так можно поправить его руками. */
+    fun saveGoal(d: GoalDraft) {
+        viewModelScope.launch {
+            val old = state.value?.goals?.find { it.id == d.id }
+            repo.saveGoal(Goal(d.id ?: newId(), d.name.trim(), d.target, d.saved, old?.monthly ?: 0, d.by?.toString().orEmpty()))
+        }
+    }
+
+    fun deleteGoal(id: String) {
+        viewModelScope.launch { repo.deleteGoal(id) }
+    }
+
+    /** «Отложить»: расход в системной категории «Накопления» со ссылкой на цель (topGoal в kassa.html). */
+    fun contribute(goalId: String, amt: Long) {
+        viewModelScope.launch {
+            val s = state.value ?: return@launch
+            val g = s.goals.find { it.id == goalId } ?: return@launch
+            repo.contribute(
+                Tx(
+                    id = newId(), ts = System.currentTimeMillis(), t = TxType.EXP, amt = amt, cur = BASE_CURRENCY, rub = amt,
+                    cat = SystemCategories.GOAL, acc = "", to = "", who = s.persons.firstOrNull().orEmpty(),
+                    d = LocalDate.now().toString(), note = g.name, ref = TxRef(RefKind.GOAL, g.id),
+                ),
+                g.id,
+            )
+        }
     }
 }

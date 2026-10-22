@@ -63,6 +63,39 @@ interface KassaDao {
     @Query("DELETE FROM recurring WHERE id = :id")
     suspend fun deleteRecurring(id: String)
 
+    @Upsert
+    suspend fun upsertGoal(goal: GoalEntity)
+
+    @Query("SELECT position FROM goals WHERE id = :id")
+    suspend fun goalPosition(id: String): Int?
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM goals")
+    suspend fun maxGoalPosition(): Int
+
+    @Query("DELETE FROM goals WHERE id = :id")
+    suspend fun deleteGoal(id: String)
+
+    /** Изменить накопленное; меньше нуля не опускаем. */
+    @Query("UPDATE goals SET saved = MAX(0, saved + :delta) WHERE id = :id")
+    suspend fun addGoalSaved(id: String, delta: Long)
+
+    @Query("SELECT * FROM tx WHERE id = :id")
+    suspend fun txById(id: String): TxEntity?
+
+    /** Взнос в цель: операция и накопленное меняются вместе. */
+    @Transaction
+    suspend fun contribute(tx: TxEntity, goalId: String) {
+        insertTx(listOf(tx)); addGoalSaved(goalId, tx.amt)
+    }
+
+    /** Удаление операции; если это взнос в цель — накопленное уменьшается (как в kassa.html). */
+    @Transaction
+    suspend fun deleteTxAndUndo(id: String) {
+        val t = txById(id) ?: return
+        if (t.refKind == "goal" && t.refId != null) addGoalSaved(t.refId, -t.amt)
+        deleteTx(id)
+    }
+
     // --- резервная копия: снимок всех данных и добавление недостающего ---
 
     @Query("SELECT * FROM accounts ORDER BY position") suspend fun allAccounts(): List<AccountEntity>
@@ -82,10 +115,11 @@ interface KassaDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertPersons(list: List<PersonEntity>)
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertRecurring(list: List<RecurringEntity>)
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertTx(list: List<TxEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertGoals(list: List<GoalEntity>)
 
     /** Добавить всё из копии одной транзакцией: либо всё, либо ничего. */
     @Transaction
-    suspend fun insertBackup(cats: List<CategoryEntity>, persons: List<PersonEntity>, rec: List<RecurringEntity>, tx: List<TxEntity>) {
-        insertCategories(cats); insertPersons(persons); insertRecurring(rec); insertTx(tx)
+    suspend fun insertBackup(cats: List<CategoryEntity>, persons: List<PersonEntity>, rec: List<RecurringEntity>, tx: List<TxEntity>, goals: List<GoalEntity>) {
+        insertCategories(cats); insertPersons(persons); insertRecurring(rec); insertGoals(goals); insertTx(tx)
     }
 }

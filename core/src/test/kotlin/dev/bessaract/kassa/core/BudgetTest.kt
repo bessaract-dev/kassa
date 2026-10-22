@@ -2,6 +2,7 @@ package dev.bessaract.kassa.core
 
 import dev.bessaract.kassa.core.calc.RecStatus
 import dev.bessaract.kassa.core.calc.budget
+import dev.bessaract.kassa.core.calc.goalPlan
 import dev.bessaract.kassa.core.calc.recStatus
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Goal
@@ -45,11 +46,12 @@ class BudgetTest {
         val b = budget(plan, loans, goals, list, today)
         assertEquals(10, b.left)
         assertEquals(110_000_00L, b.planInc)
-        assertEquals((38_000 + 900 + 5_000 + 2_000) * 100L, b.fixed)
+        // цели без даты — копилки: monthly из kassa.html не резервируется (решение 2026-10-22)
+        assertEquals((38_000 + 900 + 5_000) * 100L, b.fixed)
         assertEquals(5_000_00L, b.varSpent)
         assertEquals(760_00L, b.spentToday)
         assertEquals(1_500_00L, b.extraInc)
-        val free = (110_000 + 1_500 - 45_900 - 5_000) * 100L
+        val free = (110_000 + 1_500 - 43_900 - 5_000) * 100L
         assertEquals(free, b.free)
         assertEquals((free + 760_00) / 10, b.dayLimit)
         assertEquals((free + 760_00) / 10 - 760_00, b.leftToday)
@@ -79,5 +81,53 @@ class BudgetTest {
         assertEquals(RecStatus.Late(5), recStatus(plan[2], old, today))
         assertEquals(RecStatus.Waiting(28), recStatus(plan[3], emptyList(), today))
         assertEquals(RecStatus.Waiting(22), recStatus(plan[3].copy(day = 22), emptyList(), today))
+    }
+
+    @Test
+    fun piggybankContributionCutsFreeButNotToday() {
+        val g = Goal("g", "Копилка", 100_000_00, 15_000_00)
+        val list = listOf(tx("2026-10-22", 760), tx("2026-10-22", 5_000, ref = TxRef(RefKind.GOAL, "g")))
+        val b = budget(plan, emptyList(), listOf(g), list, today)
+        assertEquals(0L, b.goalsReserve)
+        assertEquals(38_900_00L, b.fixed)
+        assertEquals(5_760_00L, b.varSpent)
+        assertEquals(760_00L, b.spentToday)
+        assertEquals((110_000 - 38_900 - 5_760) * 100L, b.free)
+    }
+
+    @Test
+    fun datedGoalReservesMonthlyShare() {
+        // 1 000 000 к 30.12: октябрь, ноябрь, декабрь — 3 месяца → 333 334 в месяц (вверх до рубля)
+        val g = Goal("china", "Китай", 1_000_000_00, 0, by = "2026-12-30")
+        val p0 = goalPlan(g, emptyList(), today)
+        assertEquals(3, p0.months)
+        assertEquals(333_334_00L, p0.plan)
+        assertEquals(333_334_00L, p0.reserve)
+        val b0 = budget(plan, emptyList(), listOf(g), emptyList(), today)
+        assertEquals((38_900 + 333_334) * 100L, b0.fixed)
+        assertTrue(b0.dayLimit < 0)
+
+        // отложил 100 000 в этом месяце: план месяца не меняется, резерв — остаток плана
+        val paid = listOf(tx("2026-10-21", 100_000, ref = TxRef(RefKind.GOAL, "china")))
+        val g1 = g.copy(saved = 100_000_00)
+        val p1 = goalPlan(g1, paid, today)
+        assertEquals(333_334_00L, p1.plan)
+        assertEquals(233_334_00L, p1.reserve)
+        // fixed + varSpent уменьшают free ровно на план, а не на план + взнос
+        val b1 = budget(plan, emptyList(), listOf(g1), paid, today)
+        assertEquals(b0.free, b1.free)
+
+        // отложил больше плана — резерв ноль, лишнее тоже вычитается
+        val big = listOf(tx("2026-10-21", 400_000, ref = TxRef(RefKind.GOAL, "china")))
+        assertEquals(0L, goalPlan(g.copy(saved = 400_000_00), big, today).reserve)
+
+        // в ноябре недостающее 900 000 делится на 2 месяца
+        assertEquals(450_000_00L, goalPlan(g.copy(saved = 100_000_00), paid, LocalDate.of(2026, 11, 1)).plan)
+        // дата прошла — всё недостающее в этом месяце; цель достигнута — ничего
+        assertEquals(900_000_00L, goalPlan(g.copy(saved = 100_000_00), emptyList(), LocalDate.of(2027, 1, 5)).plan)
+        assertEquals(0L, goalPlan(g.copy(saved = 1_000_000_00), emptyList(), today).plan)
+        // без даты или с кривой датой — копилка
+        assertEquals(0L, goalPlan(g.copy(by = ""), emptyList(), today).plan)
+        assertEquals(0L, goalPlan(g.copy(by = "2026-13-40"), emptyList(), today).plan)
     }
 }

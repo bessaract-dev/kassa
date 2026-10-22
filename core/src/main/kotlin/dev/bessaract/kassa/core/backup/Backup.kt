@@ -64,7 +64,7 @@ fun encodeBackup(d: BackupData, exported: String): String {
                     linkedMapOf("id" to it.id, "name" to it.name, "total" to rub(it.total), "balance" to rub(it.balance), "pay" to rub(it.pay), "rate" to it.rate, "day" to it.day)
                 },
                 "goals" to d.goals.map {
-                    linkedMapOf("id" to it.id, "name" to it.name, "target" to rub(it.target), "saved" to rub(it.saved), "monthly" to rub(it.monthly))
+                    linkedMapOf("id" to it.id, "name" to it.name, "target" to rub(it.target), "saved" to rub(it.saved), "monthly" to rub(it.monthly), "by" to it.by)
                 },
             ),
             "months" to months.mapValues { (_, list) -> list.map(::txJson) },
@@ -113,7 +113,9 @@ fun decodeBackup(text: String): BackupParse {
                     Loan(str(it, "id"), str(it, "name"), kop(it["total"] ?: 0.0), kop(it["balance"]), kop(it["pay"]), (it["rate"] as? Double) ?: 0.0, int(it["day"] ?: 1.0))
                 },
                 goals = list(cfg["goals"]) {
-                    Goal(str(it, "id"), str(it, "name"), kop(it["target"]), kop(it["saved"] ?: 0.0), kop(it["monthly"] ?: 0.0))
+                    // дата цели — только настоящая; кривая превращает цель в копилку, а не портит весь файл
+                    val by = (it["by"] as? String)?.takeIf { d -> DATE.matches(d) && runCatching { LocalDate.parse(d) }.isSuccess }.orEmpty()
+                    Goal(str(it, "id"), str(it, "name", ""), amount(it["target"]), amount(it["saved"] ?: 0.0), kop(it["monthly"] ?: 0.0), by)
                 },
                 tx = tx,
                 exported = o["exported"] as? String,
@@ -161,8 +163,9 @@ data class MergePlan(
     val rec: List<Recurring>,
     val tx: List<Tx>,
     val skipped: Int,
+    val goals: List<Goal> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = cats.isEmpty() && persons.isEmpty() && rec.isEmpty() && tx.isEmpty()
+    val isEmpty: Boolean get() = cats.isEmpty() && persons.isEmpty() && rec.isEmpty() && tx.isEmpty() && goals.isEmpty()
 }
 
 /**
@@ -176,6 +179,7 @@ fun mergePlan(
     persons: List<String>,
     rec: List<Recurring>,
     txIds: Set<String>,
+    goals: List<Goal> = emptyList(),
 ): MergePlan {
     val catMap = HashMap<String, String>()
     val newCats = ArrayList<Category>()
@@ -186,12 +190,16 @@ fun mergePlan(
     }
     val recIds = rec.mapTo(HashSet()) { it.id }
     val newRec = data.rec.filter { it.id !in recIds }.distinctBy { it.id }.map { it.copy(cat = catMap[it.cat] ?: it.cat) }
+    val goalIds = goals.mapTo(HashSet()) { it.id }
+    // накопленное в цели (saved) берётся из файла как есть: взносы-операции его не пересчитывают
+    val newGoals = data.goals.filter { it.id !in goalIds }.distinctBy { it.id }
     val newTx = data.tx.filter { it.id !in txIds }.distinctBy { it.id }.map { it.copy(cat = catMap[it.cat] ?: it.cat) }
     return MergePlan(
         cats = newCats,
         persons = data.persons.filter { it.isNotBlank() && it !in persons }.distinct(),
         rec = newRec,
         tx = newTx,
-        skipped = (data.rec.size - newRec.size) + (data.tx.size - newTx.size),
+        skipped = (data.rec.size - newRec.size) + (data.tx.size - newTx.size) + (data.goals.size - newGoals.size),
+        goals = newGoals,
     )
 }

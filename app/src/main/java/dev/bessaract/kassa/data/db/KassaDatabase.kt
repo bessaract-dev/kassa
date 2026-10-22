@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import dev.bessaract.kassa.core.model.Defaults
 
@@ -14,7 +15,7 @@ import dev.bessaract.kassa.core.model.Defaults
         AccountEntity::class, CategoryEntity::class, PersonEntity::class, RateEntity::class,
         RecurringEntity::class, LoanEntity::class, GoalEntity::class, TxEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class KassaDatabase : RoomDatabase() {
@@ -24,7 +25,15 @@ abstract class KassaDatabase : RoomDatabase() {
         fun build(context: Context): KassaDatabase =
             Room.databaseBuilder(context, KassaDatabase::class.java, "kassa.db")
                 .addCallback(SeedCallback)
+                .addMigrations(MIGRATION_1_2)
                 .build()
+    }
+}
+
+/** 0.6: у цели появилась дата «накопить к». Старые цели остаются без даты (копилки). */
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE goals ADD COLUMN by_date TEXT NOT NULL DEFAULT ''")
     }
 }
 

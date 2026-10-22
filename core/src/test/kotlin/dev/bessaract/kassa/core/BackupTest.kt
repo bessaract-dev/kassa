@@ -8,6 +8,7 @@ import dev.bessaract.kassa.core.backup.encodeBackup
 import dev.bessaract.kassa.core.backup.mergePlan
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
+import dev.bessaract.kassa.core.model.Goal
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.RefKind
 import dev.bessaract.kassa.core.model.Tx
@@ -88,5 +89,20 @@ class BackupTest {
         // повторное восстановление той же копии ничего не добавляет
         val again = mergePlan(data, phoneCats + plan.cats, listOf("Я", "Мама", "Варя"), rec, setOf("t1", "t2", "t3"))
         assertTrue(again.isEmpty)
+    }
+
+    @Test
+    fun goalsRoundTripAndMergeById() {
+        val goals = listOf(Goal("g1", "Китай", 1_000_000_00, 50_000_00, by = "2026-12-30"), Goal("g2", "Копилка", 100_000_00, 0))
+        val d = data.copy(goals = goals)
+        val back = (decodeBackup(encodeBackup(d, "2026-10-22T12:00:00Z")) as BackupParse.Ok).data
+        assertEquals(goals, back.goals)
+        // кривая дата не портит файл — цель становится копилкой
+        val bad = """{"cfg":{"cats":[],"goals":[{"id":"g","name":"x","target":10,"saved":0,"monthly":0,"by":"2026-02-30"}]},"months":{}}"""
+        assertEquals("", (decodeBackup(bad) as BackupParse.Ok).data.goals[0].by)
+        val plan = mergePlan(d, cats, listOf("Я", "Варя"), rec, tx.map { it.id }.toSet(), listOf(goals[0]))
+        assertEquals(listOf("g2"), plan.goals.map { it.id })
+        // 1 строка плана + 3 операции + 1 цель уже есть
+        assertEquals(5, plan.skipped)
     }
 }

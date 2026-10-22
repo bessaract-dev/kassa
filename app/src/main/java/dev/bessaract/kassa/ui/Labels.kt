@@ -45,6 +45,9 @@ fun formDay(d: LocalDate, today: LocalDate): String = when (d) {
     else -> d.format(shortFmt)
 }
 
+/** «30.12.2026» — срок цели. */
+fun shortDate(d: LocalDate): String = d.format(sysFmt)
+
 /** Служебная строка: «21.10.2026 // СР». */
 fun sysDate(d: LocalDate): String = d.format(sysFmt) + " // " + d.format(wdFmt).uppercase(ru)
 

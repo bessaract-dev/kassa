@@ -8,7 +8,9 @@ import dev.bessaract.kassa.core.calc.budget
 import dev.bessaract.kassa.core.calc.spending
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Defaults
+import dev.bessaract.kassa.core.model.Goal
 import dev.bessaract.kassa.core.model.Recurring
+import dev.bessaract.kassa.core.model.SystemCategories
 import dev.bessaract.kassa.core.model.RefKind
 import dev.bessaract.kassa.core.model.Tx
 import dev.bessaract.kassa.core.model.TxRef
@@ -59,6 +61,11 @@ class ScreenshotTest {
         rec("mob", CatType.EXP, "Мобильная связь", 650, 28, "Связь и подписки"),
     )
 
+    private fun goals(on: Boolean) = if (!on) emptyList() else listOf(
+        Goal("g100", "Накопить 100к", 100_000_00, 40_000_00),
+        Goal("china", "Путешествие в Китай", 90_000_00, 0, by = "2026-12-30"),
+    )
+
     private fun state(withTx: Boolean, withPlan: Boolean = false, overspend: Boolean = false): SpendingState {
         val list = if (!withTx) emptyList() else listOfNotNull(
             tx("a", today, 12, 40, 54000, "Продукты"),
@@ -72,6 +79,8 @@ class ScreenshotTest {
             tx("p2", today.withDayOfMonth(1), 10, 0, 350_000, "Здоровье", note = "Спортзал", ref = TxRef(RefKind.REC, "gym")),
             tx("p3", today.withDayOfMonth(5), 10, 0, 3_800_000, "Дом", note = "Аренда квартиры", ref = TxRef(RefKind.REC, "rent")),
             tx("p4", today.withDayOfMonth(12), 10, 0, 90_000, "Связь и подписки", note = "Интернет", ref = TxRef(RefKind.REC, "net")),
+            Tx("g5", today.minusDays(2).atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), TxType.EXP, 500_000, "RUB", 500_000,
+                SystemCategories.GOAL, "", "", "Я", today.minusDays(2).toString(), "Накопить 100к", TxRef(RefKind.GOAL, "g100")),
         )
         val rec = if (withPlan) plan else emptyList()
         return SpendingState(
@@ -82,8 +91,9 @@ class ScreenshotTest {
             allCats = cats.associateBy { it.id },
             persons = Defaults.persons,
             rec = rec,
+            goals = goals(withPlan),
             monthTx = list,
-            budget = budget(rec, emptyList(), emptyList(), list, today),
+            budget = budget(rec, emptyList(), goals(withPlan), list, today),
         )
     }
 
@@ -107,6 +117,12 @@ class ScreenshotTest {
     @Test fun todayPlan() = shot("today-plan", state(true, withPlan = true))
     @Test fun todayOver() = shot("today-over", state(true, withPlan = true, overspend = true))
     @Test fun planTab() = shot("plan", state(true, withPlan = true), Tab.PLAN)
+    @Config(qualifiers = "w393dp-h1900dp-xxhdpi")
+    @Test fun planTall() = shot("plan-tall", state(true, withPlan = true), Tab.PLAN)
+    @Test fun sheetGoalNew() = shot("sheet-goal-new", state(true, withPlan = true), Tab.PLAN, NEW_GOAL)
+    @Test fun sheetGoalEdit() = shot("sheet-goal-edit", state(true, withPlan = true), Tab.PLAN, GOAL_PREFIX + "china")
+    @Test fun sheetGoalTop() = shot("sheet-goal-top", state(true, withPlan = true), Tab.PLAN, TOP_PREFIX + "g100")
+    @Test fun sheetGoalTx() = shot("sheet-goal-tx", state(true, withPlan = true), Tab.HIST, "g5")
     @Test fun historyPlan() = shot("history-plan", state(true, withPlan = true), Tab.HIST)
     @Test fun sheetRecNew() = shot("sheet-rec-new", state(true, withPlan = true), Tab.PLAN, NEW_REC_INC)
     @Test fun sheetRecEdit() = shot("sheet-rec-edit", state(true, withPlan = true), Tab.PLAN, REC_PREFIX + "rent")

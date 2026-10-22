@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.bessaract.kassa.core.amountInput
 import dev.bessaract.kassa.core.model.CatType
+import dev.bessaract.kassa.core.model.RefKind
 import dev.bessaract.kassa.core.model.Tx
 import dev.bessaract.kassa.core.model.TxType
 import dev.bessaract.kassa.core.parseAmount
@@ -113,7 +114,8 @@ fun TxSheetContent(
         }
         if (locked) {
             Text(
-                "Операция по плану: «${original?.note}». Её можно только удалить — отметка в Плане снимется.",
+                if (original?.ref?.kind == RefKind.GOAL) "Взнос в цель «${original.note}». Его можно только удалить — накопленное уменьшится."
+                else "Операция по плану: «${original?.note}». Её можно только удалить — отметка в Плане снимется.",
                 style = KassaType.Small.copy(fontSize = KassaType.Body.fontSize * 0.92f),
                 modifier = Modifier.padding(top = 12.dp),
             )

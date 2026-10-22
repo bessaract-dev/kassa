@@ -63,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.bessaract.kassa.core.calc.daysLeft
 import dev.bessaract.kassa.core.model.CatType
+import dev.bessaract.kassa.core.model.Goal
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.Tx
 import dev.bessaract.kassa.ui.components.GlitchLoop
@@ -76,7 +77,10 @@ import dev.bessaract.kassa.ui.components.rememberMotionEnabled
 import dev.bessaract.kassa.ui.components.gridBackground
 import dev.bessaract.kassa.ui.components.press
 import dev.bessaract.kassa.ui.components.reveal
+import dev.bessaract.kassa.ui.screens.GoalActions
+import dev.bessaract.kassa.ui.screens.GoalSheetContent
 import dev.bessaract.kassa.ui.screens.HistoryScreen
+import dev.bessaract.kassa.ui.screens.TopGoalSheetContent
 import dev.bessaract.kassa.ui.screens.PlaceholderScreen
 import dev.bessaract.kassa.ui.screens.PlanActions
 import dev.bessaract.kassa.ui.screens.PlanScreen
@@ -110,6 +114,9 @@ const val NEW_REC_EXP = "rec+exp"
 const val NEW_REC_INC = "rec+inc"
 const val REC_PREFIX = "rec:"
 const val SETTINGS = "settings"
+const val NEW_GOAL = "goal+"
+const val GOAL_PREFIX = "goal:"
+const val TOP_PREFIX = "top:"
 
 /** Обработчики действий интерфейса — всё, что меняет данные. */
 class KassaActions(
@@ -118,6 +125,9 @@ class KassaActions(
     val onPostRec: (Recurring) -> Unit = {},
     val onSaveRec: (RecDraft) -> Unit = {},
     val onDeleteRec: (String) -> Unit = {},
+    val onSaveGoal: (GoalDraft) -> Unit = {},
+    val onDeleteGoal: (String) -> Unit = {},
+    val onContribute: (String, Long) -> Unit = { _, _ -> },
     val backupFileName: () -> String = { "kassa.json" },
     val onExport: (Uri) -> Unit = {},
     val onReadBackup: (Uri) -> Unit = {},
@@ -132,6 +142,7 @@ fun KassaRoot(vm: SpendingViewModel = viewModel()) {
     val actions = remember(vm) {
         KassaActions(
             vm::save, vm::delete, vm::postRec, vm::saveRec, vm::deleteRec,
+            vm::saveGoal, vm::deleteGoal, vm::contribute,
             vm::backupFileName, vm::exportTo, vm::readBackup, vm::applyBackup, vm::resetBackup,
         )
     }
@@ -143,6 +154,8 @@ private sealed interface SheetTarget {
     data class TxForm(val tx: Tx?) : SheetTarget
     data class RecForm(val rec: Recurring?, val type: CatType) : SheetTarget
     data object Settings : SheetTarget
+    data class GoalForm(val goal: Goal?) : SheetTarget
+    data class TopGoal(val goal: Goal) : SheetTarget
 }
 
 private fun resolveSheet(sheet: String?, s: SpendingState?): SheetTarget? {
@@ -152,6 +165,9 @@ private fun resolveSheet(sheet: String?, s: SpendingState?): SheetTarget? {
         sheet == SETTINGS -> SheetTarget.Settings
         sheet == NEW_REC_EXP -> SheetTarget.RecForm(null, CatType.EXP)
         sheet == NEW_REC_INC -> SheetTarget.RecForm(null, CatType.INC)
+        sheet == NEW_GOAL -> SheetTarget.GoalForm(null)
+        sheet.startsWith(GOAL_PREFIX) -> s.goals.find { it.id == sheet.removePrefix(GOAL_PREFIX) }?.let { SheetTarget.GoalForm(it) }
+        sheet.startsWith(TOP_PREFIX) -> s.goals.find { it.id == sheet.removePrefix(TOP_PREFIX) }?.let { SheetTarget.TopGoal(it) }
         sheet.startsWith(REC_PREFIX) -> s.rec.find { it.id == sheet.removePrefix(REC_PREFIX) }?.let { SheetTarget.RecForm(it, it.type) }
         else -> s.monthTx.find { it.id == sheet }?.let { SheetTarget.TxForm(it) }
     }
@@ -188,6 +204,7 @@ fun KassaContent(
     }
 
     val plan = remember(actions) { PlanActions(onEdit = { sheet = REC_PREFIX + it.id }, onPost = actions.onPostRec) }
+    val goals = remember { GoalActions(onEdit = { sheet = GOAL_PREFIX + it.id }, onTop = { sheet = TOP_PREFIX + it.id }, onNew = { sheet = NEW_GOAL }) }
 
     val motion = rememberMotionEnabled()
     val glitch = remember { GlitchState() }
@@ -213,8 +230,8 @@ fun KassaContent(
                         when (tab) {
                             Tab.HOME -> TodayScreen(s, onEdit = { sheet = it.id }, plan = plan, onOpenPlan = { tab = Tab.PLAN })
                             Tab.HIST -> HistoryScreen(s) { sheet = it.id }
-                            Tab.PLAN -> PlanScreen(s, plan) { type -> sheet = if (type == CatType.INC) NEW_REC_INC else NEW_REC_EXP }
-                            Tab.DEBT -> PlaceholderScreen("Кредиты и долги с графиком платежей и процентами — версия 0.6. Накопления и цели — 0.7.")
+                            Tab.PLAN -> PlanScreen(s, plan, goals) { type -> sheet = if (type == CatType.INC) NEW_REC_INC else NEW_REC_EXP }
+                            Tab.DEBT -> PlaceholderScreen("Кредиты и долги с графиком платежей и процентами — версия 0.6. Цели накоплений — во вкладке «План».")
                         }
                     }
                 }
@@ -290,6 +307,18 @@ fun KassaContent(
                                 // text/plain и octet-stream: на некоторых телефонах .json из Загрузок помечен так
                                 onPick = { openFile.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
                                 onApply = actions.onApplyBackup,
+                                onCancel = { closeSheet() },
+                            )
+                            is SheetTarget.GoalForm -> GoalSheetContent(
+                                s = s,
+                                original = opened.goal,
+                                onSave = { d -> submit { actions.onSaveGoal(d) } },
+                                onDelete = { id -> submit { actions.onDeleteGoal(id) } },
+                                onCancel = { closeSheet() },
+                            )
+                            is SheetTarget.TopGoal -> TopGoalSheetContent(
+                                goal = opened.goal,
+                                onSave = { amt -> submit { actions.onContribute(opened.goal.id, amt) } },
                                 onCancel = { closeSheet() },
                             )
                             null -> {}

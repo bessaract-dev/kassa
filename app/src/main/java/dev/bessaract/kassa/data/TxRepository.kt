@@ -5,6 +5,7 @@ import dev.bessaract.kassa.core.backup.MergePlan
 import dev.bessaract.kassa.core.backup.mergePlan
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
+import dev.bessaract.kassa.core.model.Goal
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.findCategory
 import dev.bessaract.kassa.core.newId
@@ -23,6 +24,7 @@ class TxRepository(private val dao: KassaDao) {
     val categories: Flow<List<Category>> = dao.categories().map { list -> list.map { it.toModel() } }
     val persons: Flow<List<String>> = dao.persons().map { list -> list.map { it.name } }
     val recurring: Flow<List<Recurring>> = dao.recurring().map { list -> list.map { it.toModel() } }
+    val goals: Flow<List<Goal>> = dao.goals().map { list -> list.map { it.toModel() } }
 
     /** month = 'ГГГГ-ММ'. */
     fun monthTx(month: String): Flow<List<Tx>> = dao.monthTx(month).map { list -> list.map { it.toModel() } }
@@ -40,7 +42,20 @@ class TxRepository(private val dao: KassaDao) {
         return cat.id
     }
 
-    suspend fun delete(id: String) = dao.deleteTx(id)
+    /** Удаление операции; взнос в цель при этом вычитается из накопленного. */
+    suspend fun delete(id: String) = dao.deleteTxAndUndo(id)
+
+    /** Новая цель — в конец списка, правка — на прежнее место. */
+    suspend fun saveGoal(g: Goal) {
+        val pos = dao.goalPosition(g.id) ?: (dao.maxGoalPosition() + 1)
+        dao.upsertGoal(g.toEntity(pos))
+    }
+
+    /** Взносы остаются в истории, как в kassa.html. */
+    suspend fun deleteGoal(id: String) = dao.deleteGoal(id)
+
+    /** «Отложить»: операция-взнос и накопленное — одной транзакцией. */
+    suspend fun contribute(tx: Tx, goalId: String) = dao.contribute(tx.toEntity(), goalId)
 
     /** Новая строка плана — в конец списка, правка — на прежнее место. */
     suspend fun saveRecurring(r: Recurring) {
@@ -70,7 +85,8 @@ class TxRepository(private val dao: KassaDao) {
         val persons = dao.allPersons().map { it.name }
         val rec = dao.allRecurring().map { it.toModel() }
         val txIds = dao.allTxIds().toHashSet()
-        return withContext(Dispatchers.Default) { mergePlan(data, cats, persons, rec, txIds) }
+        val goals = dao.allGoals().map { it.toModel() }
+        return withContext(Dispatchers.Default) { mergePlan(data, cats, persons, rec, txIds, goals) }
     }
 
     /** Добавить недостающее из копии — в конец списков. */
@@ -78,11 +94,13 @@ class TxRepository(private val dao: KassaDao) {
         val catPos = dao.maxCategoryPosition() + 1
         val personPos = dao.maxPersonPosition() + 1
         val recPos = dao.maxRecurringPosition() + 1
+        val goalPos = dao.maxGoalPosition() + 1
         dao.insertBackup(
             cats = p.cats.mapIndexed { i, c -> c.toEntity(catPos + i) },
             persons = p.persons.mapIndexed { i, n -> PersonEntity(name = n, position = personPos + i) },
             rec = p.rec.mapIndexed { i, r -> r.toEntity(recPos + i) },
             tx = p.tx.map { it.toEntity() },
+            goals = p.goals.mapIndexed { i, g -> g.toEntity(goalPos + i) },
         )
     }
 }

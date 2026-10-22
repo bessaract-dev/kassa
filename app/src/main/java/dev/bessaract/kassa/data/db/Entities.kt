@@ -75,6 +75,8 @@ data class GoalEntity(
     val saved: Long,
     val monthly: Long,
     val position: Int,
+    /** Накопить к дате ГГГГ-ММ-ДД, пусто — без срока. Появилось в версии базы 2. */
+    @ColumnInfo(name = "by_date", defaultValue = "") val by: String = "",
 )
 
 /** Операция. ref хранится тремя полями: ref_kind ('rec'|'loan'|'goal' или null), ref_id, ref_princ. */
