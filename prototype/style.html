@@ -119,6 +119,25 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .dark::before{content:"";position:absolute;inset:1px;background:var(--surface);clip-path:inherit;z-index:0}
 .dark>*{position:relative;z-index:1}
 .over.lime{background:var(--bad);color:var(--ink)}
+/* Стеклянные панели A и B — по макету пользователя в Figma (2026-10-22, на пробу).
+   Заливка: лайм 33% / белая 88%, размытие под панелью 5, мелкое зерно (чёрный 25%), свечение цвета панели
+   (размытие 30, сдвиг 4 вниз, 49%), скругление углов 10, светлая кромка. Куски — цвет панели 46%.
+   Форму даёт SVG-маска (clip-path не обрезает размытие), свечение и кромку рисует JS (glassify). */
+.hud-wrap.glass{transform-style:preserve-3d;transition:transform var(--t-base) var(--ease-out);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.hud-wrap.glass.reveal{animation-fill-mode:backwards}
+.hud-wrap.glass.down{transition-duration:var(--t-fast)}
+.hud-wrap.glass>.panel{clip-path:none;isolation:isolate;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);-webkit-mask-size:100% 100%;mask-size:100% 100%}
+.hud-wrap.glass>.panel.lime{background:rgba(200,255,0,.33)}
+.hud-wrap.glass>.panel.lime.over{background:rgba(255,61,46,.33)}
+.hud-wrap.glass>.panel.paper{background:rgba(239,239,234,.88)}
+.hud-wrap.glass>.panel::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.25;mix-blend-mode:multiply;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.95' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E") 0 0/140px 140px}
+.hud-wrap.glass>i{background:color-mix(in srgb,var(--hud-c) 46%,transparent)}
+.hud-wrap.glass>.hatch-l,.hud-wrap.glass>.tick{background:repeating-linear-gradient(-45deg,var(--hud-c) 0 3px,transparent 3px 6px),color-mix(in srgb,var(--hud-c) 46%,transparent)}
+.hud-wrap.glass>.rail{background:none}
+.hud-wrap.glass>.rail path{stroke-opacity:.64}
+.hud-wrap>svg.gl{position:absolute;pointer-events:none;overflow:visible;color:var(--hud-c);transition:color var(--t-base)}
+@media (prefers-reduced-motion:reduce){.hud-wrap.glass{transition:none}}
 
 .lbl{display:flex;justify-content:space-between;align-items:center;font-size:calc(10px * var(--fs, 1));letter-spacing:.12em;text-transform:uppercase;font-weight:600}
 .lbl .cjk{font-size:calc(13px * var(--fs, 1));letter-spacing:.05em}
@@ -667,8 +686,67 @@ table.motion th{color:var(--grey);font-weight:500}
         w.appendChild(i);
       });
     });
+    root.querySelectorAll('.hud-wrap').forEach(glassify);
     shapeButtons(root);
   }
+  // ---- стеклянные панели A/B: маска формы со скруглением 10, свечение и кромка (SVG по реальному размеру) ----
+  let glId = 0;
+  const glRO = new ResizeObserver(es => es.forEach(e => glassify(e.target.parentElement)));
+  const shapePts = (a, w, h) => a
+    ? [[22, 0], [w - 104, 0], [w - 96, 8], [w - 34, 8], [w, 42], [w, h - 28], [w - 28, h], [26, h], [8, h - 18], [8, h * .58], [0, h * .58 - 8], [0, 22]]
+    : [[0, 0], [w - 30, 0], [w, 30], [w, h * .38], [w - 8, h * .38 + 8], [w - 8, h - 22], [w - 30, h], [w * .42, h], [w * .42 - 8, h - 8], [24, h - 8], [0, h - 32]];
+  function roundPath(pts, r) {
+    const n = pts.length, f = v => +v.toFixed(2);
+    let d = '';
+    pts.forEach((p, i) => {
+      const a = pts[(i - 1 + n) % n], b = pts[(i + 1) % n];
+      const la = Math.hypot(a[0] - p[0], a[1] - p[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]);
+      const rr = Math.min(r, la / 2, lb / 2);
+      const p1 = [p[0] + (a[0] - p[0]) / la * rr, p[1] + (a[1] - p[1]) / la * rr], p2 = [p[0] + (b[0] - p[0]) / lb * rr, p[1] + (b[1] - p[1]) / lb * rr];
+      d += (i ? ' L' : 'M') + f(p1[0]) + ' ' + f(p1[1]) + ' Q' + f(p[0]) + ' ' + f(p[1]) + ' ' + f(p2[0]) + ' ' + f(p2[1]);
+    });
+    return d + ' Z';
+  }
+  function glassify(w) {
+    const el = w && w.querySelector(':scope>.panel'); if (!el) return;
+    const a = w.classList.contains('hud-a'), W = el.offsetWidth, H = el.offsetHeight;
+    if (!W || !H) return;
+    w.classList.add('glass');
+    const d = roundPath(shapePts(a, W, H), 10);
+    const mask = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><path d="${d}"/></svg>`)}")`;
+    el.style.webkitMaskImage = el.style.maskImage = mask;
+    // куски снаружи — тоже светятся
+    const pieces = a
+      ? `<path d="M-9 39 L-4 34 L-4 ${H * .58 - 18} L-9 ${H * .58 - 23} Z"/><rect x="0" y="${H * .58 + 6}" width="5" height="${H * .42 - 34}"/>`
+      : `<rect x="${W - 4}" y="${H * .38 + 18}" width="4" height="${H * .62 - 46}"/><rect x="-9" y="20" width="5" height="${H * .3}"/><path d="M-8 ${H - 29} L-4 ${H - 29} L-4 ${H - 25} L22 ${H + 1} L18 ${H + 1} L-8 ${H - 25} Z"/>`;
+    const rail = a ? `<path d="M${W - 98} ${2 - 0} H${W - 39.5} L${W - 2} ${39.5} V82" fill="none" stroke="currentColor" stroke-width="2"/>` : '';
+    const id = 'gl' + (++glId), M = 46;
+    w.querySelectorAll(':scope>svg.gl').forEach(n => n.remove());
+    const box = `viewBox="${-M} ${-M} ${W + 2 * M} ${H + 2 * M}" width="${W + 2 * M}" height="${H + 2 * M}" style="left:${-M}px;top:${-M}px"`;
+    // свечение: под панелью, но не внутри её формы (как тень в Figma — не просвечивает сквозь стекло)
+    w.insertAdjacentHTML('afterbegin', `<svg class="gl" ${box} aria-hidden="true"><defs>
+      <filter id="${id}b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="15"/></filter>
+      <mask id="${id}m" maskUnits="userSpaceOnUse" x="${-M}" y="${-M}" width="${W + 2 * M}" height="${H + 2 * M}"><rect x="${-M}" y="${-M}" width="${W + 2 * M}" height="${H + 2 * M}" fill="#fff"/><path d="${d}" fill="#000"/></mask></defs>
+      <g mask="url(#${id}m)" opacity=".49" filter="url(#${id}b)" fill="currentColor"><g transform="translate(0 4)"><path d="${d}"/>${pieces}${rail}</g></g></svg>`);
+    // кромка стекла: светлая сверху слева, гаснет к середине, чуть светлее снизу справа
+    w.insertAdjacentHTML('beforeend', `<svg class="gl" ${box} aria-hidden="true"><defs>
+      <linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".35"/></linearGradient>
+      <clipPath id="${id}c"><path d="${d}"/></clipPath></defs>
+      <path d="${d}" fill="none" stroke="url(#${id}g)" stroke-width="2.4" clip-path="url(#${id}c)"/></svg>`);
+    if (!el.dataset.gl) { el.dataset.gl = 1; glRO.observe(el); }
+  }
+  // 3D-нажатие стеклянной панели: утапливается и наклоняется в сторону пальца
+  function glassPress(e) {
+    const w = e.target.closest('.hud-wrap.glass'); if (!w || e.target.closest('button,a,input')) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const r = w.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * 2 - 1, py = (e.clientY - r.top) / r.height * 2 - 1;
+    w.classList.add('down');
+    w.style.transform = `perspective(700px) translateZ(-14px) rotateX(${(-py * 7).toFixed(2)}deg) rotateY(${(px * 7).toFixed(2)}deg) translateY(1px)`;
+    const up = () => { w.classList.remove('down'); w.style.transform = ''; removeEventListener('pointerup', up); removeEventListener('pointercancel', up); };
+    addEventListener('pointerup', up); addEventListener('pointercancel', up);
+    if (navigator.vibrate) try { navigator.vibrate(8); } catch (_) {}
+  }
+  document.addEventListener('pointerdown', glassPress);
   const BTN_VARIANTS = [
     { tab: [24, 66], h: 6, tl: 12, tr: 18, br: 10, bl: 26 },
     { tab: [38, 84], h: 6, tl: 20, tr: 10, br: 24, bl: 10 },
