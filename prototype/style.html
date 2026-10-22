@@ -27,7 +27,7 @@
   /* ШРИФТЫ */
   --display:Tektur, system-ui, sans-serif;
   --mono:"JetBrains Mono", ui-monospace, monospace;
-  --cjk:"Hiragino Sans","Noto Sans CJK JP","Noto Sans JP","PingFang SC",sans-serif;
+  --cjk:"PingFang SC","Noto Sans CJK SC","Noto Sans SC","Microsoft YaHei","Hiragino Sans GB",sans-serif; /* 2026-10-22: ярлыки на упрощённом китайском */
 
   /* ДВИЖЕНИЕ */
   --t-fast:120ms;   /* нажатия, переключатели */
@@ -369,16 +369,16 @@ table.motion th{color:var(--grey);font-weight:500}
 
       <div class="scroll" id="scroll"></div>
       <nav class="nav">
-        <button class="press" data-tab="home"><span class="cjk">今日</span>Сегодня</button>
-        <button class="press" data-tab="hist"><span class="cjk">履歴</span>История</button>
+        <button class="press" data-tab="home"><span class="cjk">今天</span>Сегодня</button>
+        <button class="press" data-tab="hist"><span class="cjk">记录</span>История</button>
         <button class="fab press" id="fab" aria-label="Добавить">+</button>
-        <button class="press" data-tab="plan"><span class="cjk">計画</span>План</button>
+        <button class="press" data-tab="plan"><span class="cjk">计划</span>План</button>
         <button class="press" data-tab="exp"><span class="cjk">支出</span>Расходы</button>
       </nav>
       <div class="scrim" id="scrim"></div>
       <div class="sheet" id="sheet"></div>
       <div class="boot" id="boot">
-        <p class="logo">KASSA<span class="cjk">家計簿</span></p>
+        <p class="logo">KASSA<span class="cjk">记账本</span></p>
         <p>SYS.INIT  v0.4 ............</p>
         <p>LOAD LEDGER ...............</p>
         <p>CALC DAY LIMIT ............</p>
@@ -396,7 +396,7 @@ table.motion th{color:var(--grey);font-weight:500}
 
   <!-- ================= СПЕЦИФИКАЦИЯ ================= -->
   <div class="spec">
-    <h2><span class="n">00</span>Стиль v3 «мех-HUD» <span class="cjk">設計</span></h2>
+    <h2><span class="n">00</span>Стиль v3 «мех-HUD» <span class="cjk">设计</span></h2>
     <p class="note">Hard-surface sci-fi интерфейс: плоские панели с вырезами, штриховки, служебный текст, контурные трассы, японские ярлыки. Тёмный фон, акцентные плашки белые и лаймовые. Это черновик для обсуждения, все значения можно менять.</p>
 
     <h2><span class="n">01</span>Палитра <span class="cjk">色</span></h2>
@@ -419,7 +419,7 @@ table.motion th{color:var(--grey);font-weight:500}
     <div class="type-row"><span class="k">Заголовок · Tektur 800 / 34</span><span style="font:800 calc(34px * var(--fs, 1))/1 var(--display);text-transform:uppercase">Сегодня</span></div>
     <div class="type-row"><span class="k">Текст · JetBrains Mono 400 / 13</span><span>Продукты · Я · Карта · 12:40</span></div>
     <div class="type-row"><span class="k">Ярлык · Mono 600 / 10, капс</span><span style="font-size:calc(10px * var(--fs, 1));letter-spacing:.12em;font-weight:600">ОСТАЛОСЬ НА СЕГОДНЯ · SN 48-1508F</span></div>
-    <div class="type-row"><span class="k">Иероглифы · системный CJK</span><span class="cjk" style="font-size:calc(22px * var(--fs, 1))">今日 残高 履歴 計画 負債 報告 設定 家計簿</span></div>
+    <div class="type-row"><span class="k">Иероглифы · системный CJK</span><span class="cjk" style="font-size:calc(22px * var(--fs, 1))">今天 余额 记录 计划 负债 报告 设置 记账本</span></div>
     <p class="note" style="margin-top:10px">Иероглифы только декоративные ярлыки рядом с русским текстом, смысл всегда дублируется по-русски. В Android их рисует системный шрифт Noto CJK, ничего докачивать не надо.</p>
 
     <h2><span class="n">03</span>Формы и детали <span class="cjk">形</span></h2>
@@ -431,7 +431,7 @@ table.motion th{color:var(--grey);font-weight:500}
       <div class="demo"><div class="t">Декор</div><div class="d">Штриховка, стрелки ⇲, крестики-маркеры, серийники. Не больше 2–3 на панель.</div><div class="stage" style="color:var(--lime);gap:14px;display:flex;justify-content:center"><div class="hatch"></div><span class="arrows">⇲⇲⇲</span><span class="cross" style="position:relative;opacity:1"></span><span style="font-size:calc(9px * var(--fs, 1));color:var(--grey)">SN 48-1508F</span></div></div>
     </div>
 
-    <h2><span class="n">04</span>Анимации <span class="cjk">動</span></h2>
+    <h2><span class="n">04</span>Анимации <span class="cjk">动</span></h2>
     <p class="note">Принцип: движение механическое и быстрое, как у прибора. Резкий старт, мягкая остановка, никаких «пружинок». Всё отключается системной настройкой «уменьшить движение».</p>
     <div class="demo-grid">
       <div class="demo"><div class="t">Запуск экрана</div><div class="d">Панели появляются по очереди снизу вверх со вспышкой яркости. 220 мс, шаг 45 мс.</div><div class="stage" id="stWipe"></div><button class="small-btn" data-demo="wipe">▶ Повтор</button></div>
@@ -439,7 +439,7 @@ table.motion th{color:var(--grey);font-weight:500}
       <div class="demo"><div class="t">Нажатие</div><div class="d">Кнопка проседает на 2 px и на миг инвертируется. 120 мс. Плюс короткая вибрация на телефоне.</div><div class="stage"><button class="btn primary press" style="width:160px"><span>Нажми</span><span class="arrows">⇲</span></button></div><span class="d">зажми кнопку</span></div>
       <div class="demo"><div class="t">Нижний лист</div><div class="d">Выезжает за 360 мс, затем вдоль верхней грани пробегает лаймовая линия.</div><div class="stage"><span style="color:var(--grey);font-size:calc(11px * var(--fs, 1))">жми «+» на телефоне</span></div><button class="small-btn" data-demo="sheet">▶ Открыть</button></div>
       <div class="demo"><div class="t">Трассы</div><div class="d">По контурным линиям фона медленно бежит лаймовый «ток». 7 с на круг. Фон, не отвлекает.</div><div class="stage"><svg viewBox="0 0 200 60" style="width:100%;height:100%"><path d="M0 30 H60 L80 10 H140 L160 30 H200" style="fill:none;stroke:var(--line)"/><path d="M0 30 H60 L80 10 H140 L160 30 H200" style="fill:none;stroke:var(--lime);stroke-width:2;stroke-dasharray:40 300;animation:flow 3s linear infinite"/></svg></div></div>
-      <div class="demo"><div class="t">Глитч</div><div class="d">Случайно, раз в 15–40 с: сдвиг строк + цветное расщепление на 180 мс. Иногда полоса через экран. Никогда во время ввода.</div><div class="stage"><span class="glitch" id="demoGl" data-text="残高 2 340" style="font:800 calc(28px * var(--fs, 1)) var(--display)">残高 2 340</span></div>
+      <div class="demo"><div class="t">Глитч</div><div class="d">Случайно, раз в 15–40 с: сдвиг строк + цветное расщепление на 180 мс. Иногда полоса через экран. Никогда во время ввода.</div><div class="stage"><span class="glitch" id="demoGl" data-text="余额 2 340" style="font:800 calc(28px * var(--fs, 1)) var(--display)">余额 2 340</span></div>
         <div class="seg-ctl"><span class="d" style="min-height:0;margin:0 6px 0 0">частота:</span><button class="small-btn" data-gl="0">выкл</button><button class="small-btn on" data-gl="1">редко</button><button class="small-btn" data-gl="2">часто</button></div></div>
     </div>
 
@@ -483,7 +483,7 @@ table.motion th{color:var(--grey);font-weight:500}
 
   /* ---------- данные (только этот браузер) ---------- */
   const KEY = 'kassa.proto04';
-  const ICON = { 'Продукты': '食', 'Кафе и рестораны': '茶', 'Транспорт': '車', 'Дом': '家', 'Развлечения': '楽', 'Связь и подписки': '信', 'Здоровье': '医', 'Одежда': '服', 'Дети': '子', 'Подарки': '贈', 'Прочее': '他', 'Кредиты': '債', 'Накопления': '貯', 'Зарплата': '給', 'Подработка': '副', 'Прочий доход': '入' };
+  const ICON = { 'Продукты': '食', 'Кафе и рестораны': '茶', 'Транспорт': '车', 'Дом': '家', 'Развлечения': '乐', 'Связь и подписки': '讯', 'Здоровье': '医', 'Одежда': '服', 'Дети': '童', 'Подарки': '礼', 'Прочее': '他', 'Кредиты': '债', 'Накопления': '存', 'Зарплата': '薪', 'Подработка': '副', 'Прочий доход': '收' };
   const SHORT = { 'Кафе и рестораны': 'Кафе', 'Связь и подписки': 'Связь', 'Прочий доход': 'Прочее' };
   function defaults() {
     const exp = ['Продукты', 'Кафе и рестораны', 'Транспорт', 'Дом', 'Связь и подписки', 'Здоровье', 'Одежда', 'Развлечения', 'Дети', 'Подарки', 'Прочее'];
@@ -548,7 +548,7 @@ table.motion th{color:var(--grey);font-weight:500}
     // операция по плану называется как строка плана, а не как категория
     const title = t.ref ? t.note : catName(t.cat);
     const meta = [inc ? '' : t.who, mark, t.ref ? '' : t.note, time(t.ts)].filter(Boolean).join(' · ');
-    return `<div class="panel dark shape-c op${rv()}" data-act="editTx" data-id="${t.id}"><div class="ic"${inc ? ' style="color:var(--ink);background:var(--lime)"' : ''}>${inc ? (ICON[catName(t.cat)] || '入') : icon(t.cat)}</div><div><div class="n">${esc(title)}</div><div class="m">${esc(meta)}</div></div><div class="a${inc ? ' pos' : ''}">${inc ? '+' : '−'}${fmtN(t.rub)}</div></div>`;
+    return `<div class="panel dark shape-c op${rv()}" data-act="editTx" data-id="${t.id}"><div class="ic"${inc ? ' style="color:var(--ink);background:var(--lime)"' : ''}>${inc ? (ICON[catName(t.cat)] || '收') : icon(t.cat)}</div><div><div class="n">${esc(title)}</div><div class="m">${esc(meta)}</div></div><div class="a${inc ? ' pos' : ''}">${inc ? '+' : '−'}${fmtN(t.rub)}</div></div>`;
   }
   // строка плана: статус за этот месяц + кнопка «Оплатил/Получил»
   // act — что по нажатию на строку: правка (по умолчанию) или переход во вкладку «Расходы»
@@ -557,17 +557,17 @@ table.motion th{color:var(--grey);font-weight:500}
     const st = p ? `<span class="st ok">✓ ${inc ? 'получено' : 'оплачено'} ${+p.d.slice(8)}-го</span>`
       : r.day < dnow ? `<span class="st warn">срок был ${r.day}-го</span>` : `<span class="st wait">ждёт ${r.day}-го</span>`;
     const btn = withBtn && !p ? `<button class="mini press" data-act="postRec" data-id="${r.id}">${inc ? 'Получил' : 'Оплатил'}</button>` : '';
-    return `<div class="panel dark shape-c op${btn ? ' op4' : ''}${p ? ' paid' : ''}${rv()}" data-act="${act}" data-id="${r.id}"><div class="ic"${inc ? ' style="color:var(--ink);background:var(--lime)"' : ''}>${inc ? (ICON[catName(r.cat)] || '入') : icon(r.cat)}</div><div><div class="n">${esc(r.name)}</div><div class="m">${st}</div></div><div class="a${inc ? ' pos' : ''}">${inc ? '+' : '−'}${fmtN(r.amt)}</div>${btn}</div>`;
+    return `<div class="panel dark shape-c op${btn ? ' op4' : ''}${p ? ' paid' : ''}${rv()}" data-act="${act}" data-id="${r.id}"><div class="ic"${inc ? ' style="color:var(--ink);background:var(--lime)"' : ''}>${inc ? (ICON[catName(r.cat)] || '收') : icon(r.cat)}</div><div><div class="n">${esc(r.name)}</div><div class="m">${st}</div></div><div class="a${inc ? ' pos' : ''}">${inc ? '+' : '−'}${fmtN(r.amt)}</div>${btn}</div>`;
   }
   const byDay = r => r.slice().sort((a, b) => a.day - b.day);
 
   /* ---------- экраны ---------- */
-  const TABS = { home: ['Сегодня', '今日'], hist: ['История', '履歴'], plan: ['План', '計画'], exp: ['Расходы', '支出'] };
+  const TABS = { home: ['Сегодня', '今天'], hist: ['История', '记录'], plan: ['План', '计划'], exp: ['Расходы', '支出'] };
   let tab = 'home';
   function head() {
     const b = budget(), d = new Date(), [t, c] = TABS[tab];
     const idx = Object.keys(TABS).map((k, i) => `<span${k === tab ? ' class="on"' : ''}>0${i + 1}</span>`).join('');
-    return `<div class="sys${rv()}"><span>KS-01 // <b>${d.toLocaleDateString('ru-RU')}</b> // ${WD[d.getDay()].toUpperCase()}</span><span style="white-space:nowrap">残 <b>${b.left}</b> ДН<button class="gear press" data-act="settings" aria-label="Настройки">⚙</button></span></div>
+    return `<div class="sys${rv()}"><span>KS-01 // <b>${d.toLocaleDateString('ru-RU')}</b> // ${WD[d.getDay()].toUpperCase()}</span><span style="white-space:nowrap">剩 <b>${b.left}</b> ДН<button class="gear press" data-act="settings" aria-label="Настройки">⚙</button></span></div>
       <div class="head${rv()}"><div><h1 class="glitch" data-text="${t}">${t}</h1><div class="idx">${idx}</div></div><div class="vtag">${[...c].map(x => `<span>${x}</span>`).join('')}</div></div>`;
   }
   function vHome() {
@@ -578,23 +578,23 @@ table.motion th{color:var(--grey);font-weight:500}
       h += `<div class="panel lime shape-a${rv()}" data-act="goHist" style="padding-top:24px">${lbl('Потрачено сегодня', '支出')}
         <div class="big glitch" id="heroNum" data-text="${fmtN(b.spentAllToday)} ₽"><span class="num" data-val="${b.spentAllToday}">${fmtN(b.spentAllToday)}</span><small>₽</small></div>
         <div class="sub">операций сегодня: ${tTx.length}</div><div class="bar-row"><div class="hatch"></div><span class="arrows">⇲⇲⇲</span></div><span class="serial">SN 48-1508F</span></div>
-        <div class="panel paper shape-b${rv()}" data-act="goPlan" style="padding-bottom:20px">${lbl('Лимит на день', '限度')}
-        <div class="hint" style="margin-top:8px"><span class="cjk" style="color:var(--ink)">計画</span><span>Добавь доходы и обязательные платежи во вкладке «План» — тогда здесь будет видно, сколько можно тратить в день.</span></div>
+        <div class="panel paper shape-b${rv()}" data-act="goPlan" style="padding-bottom:20px">${lbl('Лимит на день', '限额')}
+        <div class="hint" style="margin-top:8px"><span class="cjk" style="color:var(--ink)">计划</span><span>Добавь доходы и обязательные платежи во вкладке «План» — тогда здесь будет видно, сколько можно тратить в день.</span></div>
         <button class="btn primary press" data-act="goPlan" style="margin-top:14px"><span>Открыть план</span><span class="arrows">⇲⇲</span></button></div>`;
     } else {
       const over = b.leftToday < 0;
-      h += `<div class="panel lime shape-a${over ? ' over' : ''}${rv()}" data-act="goHist" style="padding-top:24px">${lbl(over ? 'Перерасход за сегодня' : 'Осталось на сегодня', over ? '超過' : '残高')}
+      h += `<div class="panel lime shape-a${over ? ' over' : ''}${rv()}" data-act="goHist" style="padding-top:24px">${lbl(over ? 'Перерасход за сегодня' : 'Осталось на сегодня', over ? '超支' : '余额')}
         <div class="big glitch" id="heroNum" data-text="${fmtN(b.leftToday)} ₽"><span class="num" data-val="${b.leftToday}">${fmtN(b.leftToday)}</span><small>₽</small></div>
         <div class="sub">лимит ${fmtN(b.dayLimit)} · потрачено ${fmtN(b.spentToday)}</div>
         <div class="bar-row"><div class="hatch"></div><span class="arrows">⇲⇲⇲</span></div><div class="hatch v"></div><span class="serial">SN 48-1508F</span></div>
-        <div class="panel paper shape-b${rv()}" data-act="goPlan" style="padding-bottom:24px">${lbl('Свободно до конца месяца', '月末')}
+        <div class="panel paper shape-b${rv()}" data-act="goPlan" style="padding-bottom:24px">${lbl('Свободно до конца месяца', '月底')}
         <div class="mid"><span class="num" data-val="${b.free}">${fmtN(b.free)}</span> ₽</div>
         <div class="segs">${Array.from({ length: b.dim }, (_, i) => `<i class="${i + 1 < new Date().getDate() ? 'on' : i + 1 === new Date().getDate() ? 'now' : ''}"></i>`).join('')}</div>
         <div class="sub" style="margin-top:6px">дней осталось: ${b.left} из ${b.dim} · обязательные ${fmtN(b.fixed)}</div></div>`;
       const due = byDay(S.rec.filter(r => !paidTx(r.id)));
-      if (due.length) h += opsH('予定', 'Ждут в этом месяце', String(due.length).padStart(2, '0') + ' шт') + due.map(r => recRow(r, true)).join('');
+      if (due.length) h += opsH('待付', 'Ждут в этом месяце', String(due.length).padStart(2, '0') + ' шт') + due.map(r => recRow(r, true)).join('');
     }
-    h += opsH('履歴', 'Операции сегодня', String(tTx.length).padStart(2, '0') + ' шт');
+    h += opsH('记录', 'Операции сегодня', String(tTx.length).padStart(2, '0') + ' шт');
     h += tTx.length ? tTx.map(txRow).join('') : empty('空', 'Пока пусто. Нажми «+», чтобы записать трату.');
     return h;
   }
@@ -602,7 +602,7 @@ table.motion th{color:var(--grey);font-weight:500}
     const k = today().slice(0, 7), tx = monthTx(k), exp = sum(tx.filter(t => t.t === 'exp'), t => t.rub), inc = sum(tx.filter(t => t.t === 'inc'), t => t.rub);
     // плашка: остаток (= «Свободно до конца месяца»), из чего он складывается
     const b = budget(), due = sum(S.rec.filter(r => r.type === 'exp' && !paidTx(r.id)), r => r.amt);
-    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Остаток на месяц', '今月')}
+    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Остаток на месяц', '本月')}
       <div class="mid"><span class="num" data-val="${b.free}">${fmtN(b.free)}</span> ₽</div>
       <div class="sub" style="margin-top:4px">свободно до конца месяца</div>
       <div class="split"><div><span>Доходы</span><span>+${fmtN(b.planInc + b.extraInc)}</span></div><div><span>Потрачено</span><span>−${fmtN(exp)}</span></div><div><span>Предстоит: обязательные</span><span>−${fmtN(due)}</span></div>${b.goalsMonthly ? `<div><span>Предстоит: на цели</span><span>−${fmtN(b.goalsMonthly)}</span></div>` : ''}</div></div>`;
@@ -622,12 +622,12 @@ table.motion th{color:var(--grey);font-weight:500}
     const meta = done ? '<span class="st ok">✓ цель достигнута</span>'
       : `${fmtN(g.saved)} из ${fmtN(g.target)} · ${Math.floor(p)}%` + (by ? `<br>${by} · за месяц ${fmtN(month)} из ${fmtN(plan)}` : month ? ` · в этом месяце +${fmtN(month)}` : '');
     const btn = done ? '' : `<button class="mini press" data-act="topGoal" data-id="${g.id}">Отложить</button>`;
-    return `<div class="panel dark shape-c op op-goal${rv()}" data-act="editGoal" data-id="${g.id}"><div class="ic">貯</div><div><div class="n">${esc(g.name)}</div><div class="m">${meta}</div><div class="prog"><i style="width:${p}%"></i></div></div>${btn}</div>`;
+    return `<div class="panel dark shape-c op op-goal${rv()}" data-act="editGoal" data-id="${g.id}"><div class="ic">存</div><div><div class="n">${esc(g.name)}</div><div class="m">${meta}</div><div class="prog"><i style="width:${p}%"></i></div></div>${btn}</div>`;
   }
   function vPlan() {
     const b = budget(), inc = byDay(S.rec.filter(r => r.type === 'inc')), exp = byDay(S.rec.filter(r => r.type === 'exp'));
     const recExp = b.fixed - b.goalsMonthly, rest = b.planInc - b.fixed, paidN = exp.filter(r => paidTx(r.id)).length;
-    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Остаток на месяц', '余り')}
+    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Остаток на месяц', '结余')}
       <div class="mid"><span class="num" data-val="${rest}">${fmtN(rest)}</span> ₽</div>
       <div class="sub" style="margin-top:4px">${rest < 0 ? 'не хватает: уменьши цель или сдвинь дату' : 'столько остаётся на ежедневные траты'}</div>
       <div class="split"><div><span>Доходы</span><span>+${fmtN(b.planInc)}</span></div><div><span>Обязательные платежи</span><span>−${fmtN(recExp)}</span></div>${b.goalsMonthly ? `<div><span>На цели</span><span>−${fmtN(b.goalsMonthly)}</span></div>` : ''}</div></div>`;
@@ -636,11 +636,11 @@ table.motion th{color:var(--grey);font-weight:500}
     // обязательные платежи в «Плане» только для обзора: добавляются, правятся и оплачиваются во вкладке «Расходы»
     const goExp = `<button class="add-row press${rv()}" data-act="goExp"><b>→</b>Платежи меняются во вкладке «Расходы»</button>`;
     const row = r => r.type === 'inc' ? recRow(r, true) : recRow(r, false, 'goExp');
-    if (planF === 'inc') h += opsH('収入', 'Постоянные доходы', '+' + fmtN(b.planInc)) + inc.map(row).join('') + addInc;
-    else if (planF === 'exp') h += opsH('支払', 'Обязательные платежи', `${paidN}/${exp.length} оплачено`) + exp.map(row).join('') + goExp;
-    else h += opsH('暦', 'По числам', `+${fmtN(b.planInc)} / −${fmtN(recExp)}`) + byDay(S.rec).map(row).join('') + addInc + goExp;
+    if (planF === 'inc') h += opsH('收入', 'Постоянные доходы', '+' + fmtN(b.planInc)) + inc.map(row).join('') + addInc;
+    else if (planF === 'exp') h += opsH('付款', 'Обязательные платежи', `${paidN}/${exp.length} оплачено`) + exp.map(row).join('') + goExp;
+    else h += opsH('日历', 'По числам', `+${fmtN(b.planInc)} / −${fmtN(recExp)}`) + byDay(S.rec).map(row).join('') + addInc + goExp;
     const goalsLeft = S.goals.filter(g => g.saved < g.target).length;
-    h += opsH('目標', 'Цели', S.goals.length ? `${goalsLeft} в работе` : '');
+    h += opsH('目标', 'Цели', S.goals.length ? `${goalsLeft} в работе` : '');
     h += S.goals.map(goalRow).join('');
     h += `<button class="add-row press${rv()}" data-act="newGoal"><b>+</b>Добавить цель (накопить 100к, поездка…)</button>`;
     h += `<p class="info${rv()}">«Получил» записывает доход на сегодня с суммой из плана. «Отложить» добавляет взнос в цель. Ошибся — удали операцию в Истории, отметка снимется.</p>`;
@@ -650,14 +650,14 @@ table.motion th{color:var(--grey);font-weight:500}
   function vExp() {
     const exp = byDay(S.rec.filter(r => r.type === 'exp')), paid = exp.filter(r => paidTx(r.id));
     const total = sum(exp, r => r.amt), paidSum = sum(paid, r => paidTx(r.id).rub), due = sum(exp.filter(r => !paidTx(r.id)), r => r.amt);
-    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Обязательные в месяц', '支払')}
+    let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Обязательные в месяц', '付款')}
       <div class="mid"><span class="num" data-val="${total}">${fmtN(total)}</span> ₽</div>
       <div class="sub" style="margin-top:4px">аренда, связь, подписки — каждый месяц</div>
       <div class="split"><div><span>Оплачено (${paid.length})</span><span>−${fmtN(paidSum)}</span></div><div><span>Предстоит (${exp.length - paid.length})</span><span>−${fmtN(due)}</span></div></div></div>`;
-    h += opsH('支払', 'Обязательные платежи', `${paid.length}/${exp.length} оплачено`) + exp.map(r => recRow(r, true)).join('');
+    h += opsH('付款', 'Обязательные платежи', `${paid.length}/${exp.length} оплачено`) + exp.map(r => recRow(r, true)).join('');
     h += `<button class="add-row press${rv()}" data-act="newRec" data-type="exp"><b>+</b>Добавить платёж (аренда, связь…)</button>`;
-    h += opsH('債', 'Кредиты и долги', '');
-    h += `<div class="panel dark shape-c${rv()}" style="padding:16px">${lbl('В разработке', '工事中')}<p style="margin-top:10px">Кредиты и долги с графиком платежей и процентами — следующая версия.</p></div>`;
+    h += opsH('债', 'Кредиты и долги', '');
+    h += `<div class="panel dark shape-c${rv()}" style="padding:16px">${lbl('В разработке', '开发中')}<p style="margin-top:10px">Кредиты и долги с графиком платежей и процентами — следующая версия.</p></div>`;
     h += `<p class="info${rv()}">«Оплатил» записывает трату на сегодня с суммой платежа. Ошибся — удали операцию в Истории, отметка снимется.</p>`;
     return h;
   }
@@ -790,7 +790,7 @@ table.motion th{color:var(--grey);font-weight:500}
     const f = form, h = [];
     if (f.kind === 'tx') {
       const inc = f.t === 'inc', locked = !!f.ref;
-      h.push(`<h3><span>${f.id ? (inc ? 'Правка дохода' : 'Правка траты') : (inc ? 'Новый доход' : 'Новая трата')}</span><span class="cjk">${inc ? '収入' : '支出'}</span></h3>`);
+      h.push(`<h3><span>${f.id ? (inc ? 'Правка дохода' : 'Правка траты') : (inc ? 'Новый доход' : 'Новая трата')}</span><span class="cjk">${inc ? '收入' : '支出'}</span></h3>`);
       if (!f.id) h.push(`<div class="seg">${['exp', 'inc'].map(t => `<button class="${f.t === t ? 'on' : ''}" data-act="setT" data-v="${t}">${t === 'exp' ? 'Трата' : 'Доход'}</button>`).join('')}</div>`);
       if (locked) h.push(f.ref.k === 'goal'
         ? `<p class="info">Взнос в цель «${esc(f.note)}». Его можно только удалить — накопленное уменьшится.</p>`
@@ -806,10 +806,10 @@ table.motion th{color:var(--grey);font-weight:500}
         h.push(`<div class="f-lbl">Заметка</div><input class="inp" data-f="note" placeholder="необязательно" value="${esc(f.note)}">`);
         h.push('<div style="height:12px"></div>' + btn('primary', 'saveTx', 'Записать', '<span class="arrows">⇲⇲</span>'));
       }
-      if (f.id) h.push(btn('ghost', 'delTx', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">削除</span>'));
+      if (f.id) h.push(btn('ghost', 'delTx', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">删除</span>'));
       h.push(btn('ghost', 'cancel', 'Отмена', '<span class="cjk">取消</span>'));
     } else if (f.kind === 'goal') {
-      h.push(`<h3><span>${f.id ? 'Правка цели' : 'Новая цель'}</span><span class="cjk">目標</span></h3>`);
+      h.push(`<h3><span>${f.id ? 'Правка цели' : 'Новая цель'}</span><span class="cjk">目标</span></h3>`);
       h.push(`<div class="f-lbl">Цель</div><input class="inp" data-f="name" placeholder="Накопить 100к, путешествие в Китай…" value="${esc(f.name)}">`);
       h.push(`<div class="f-lbl">Сумма цели, ₽</div><input class="inp" data-f="target" inputmode="decimal" placeholder="100 000" value="${esc(f.target)}">`);
       h.push(`<div class="f-lbl">Уже накоплено, ₽</div><input class="inp" data-f="saved" inputmode="decimal" placeholder="0" value="${esc(f.saved)}">`);
@@ -817,25 +817,25 @@ table.motion th{color:var(--grey);font-weight:500}
       h.push(`<p class="info">Без даты цель — копилка: на лимит влияет только то, что отложил. С датой приложение делит недостающее на месяцы до неё и заранее вычитает взнос месяца из «Свободно до конца месяца», так что лимит на день уже учитывает цель.</p>`);
       if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
       h.push('<div style="height:12px"></div>' + btn('primary', 'saveGoal', 'Сохранить', '<span class="arrows">⇲⇲</span>'));
-      if (f.id) h.push(btn('ghost', 'delGoal', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">削除</span>'));
+      if (f.id) h.push(btn('ghost', 'delGoal', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">删除</span>'));
       h.push(btn('ghost', 'cancel', 'Отмена', '<span class="cjk">取消</span>'));
     } else if (f.kind === 'topGoal') {
       const g = S.goals.find(x => x.id === f.id);
-      h.push(`<h3><span>Отложить</span><span class="cjk">貯金</span></h3>`);
+      h.push(`<h3><span>Отложить</span><span class="cjk">存钱</span></h3>`);
       h.push(`<p class="info">«${esc(g.name)}»: накоплено ${fmtN(g.saved)} из ${fmtN(g.target)}, осталось ${fmtN(Math.max(0, g.target - g.saved))}. Сумма вычтется из «Свободно до конца месяца».</p>`);
       h.push(`<input class="inp big" data-f="amt" inputmode="decimal" placeholder="0" value="${esc(f.amt)}">`);
       if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
       h.push('<div style="height:12px"></div>' + btn('primary', 'saveTop', 'Отложить', '<span class="arrows">⇲⇲</span>'));
       h.push(btn('ghost', 'cancel', 'Отмена', '<span class="cjk">取消</span>'));
     } else if (f.kind === 'settings') {
-      h.push(`<h3><span>Настройки</span><span class="cjk">設定</span></h3>`);
+      h.push(`<h3><span>Настройки</span><span class="cjk">设置</span></h3>`);
       h.push(`<div class="f-lbl">Резервная копия</div>`);
       if (!f.pending) {
         h.push(`<p class="info">Один файл со всеми данными: план, категории, операции. Лежит там, куда сохранишь (Загрузки, Диск). Приложение никуда его не отправляет.</p>`);
         h.push(`<div class="stat-row"><span>Операций</span><span>${S.tx.length}</span></div><div class="stat-row"><span>Строк плана</span><span>${S.rec.length}</span></div>`);
         if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
         h.push('<div style="height:12px"></div>' + btn('primary', 'exportJson', 'Сохранить копию', '<span class="arrows">⇲⇲</span>'));
-        h.push(btn('ghost', 'pickImport', 'Восстановить из копии', '<span class="cjk">復元</span>'));
+        h.push(btn('ghost', 'pickImport', 'Восстановить из копии', '<span class="cjk">恢复</span>'));
       } else {
         const m = mergePlan(f.pending), n = m.tx.length + m.rec.length;
         h.push(`<p class="info">Копия от ${esc(f.pending.when)}. Добавится только то, чего нет в телефоне. Что уже есть, не меняется.</p>`);
@@ -846,7 +846,7 @@ table.motion th{color:var(--grey);font-weight:500}
       h.push(btn('ghost', 'cancel', 'Отмена', '<span class="cjk">取消</span>'));
     } else {
       const inc = f.type === 'inc';
-      h.push(`<h3><span>${f.id ? 'Правка' : 'Новый'} ${inc ? 'доход' : 'платёж'}</span><span class="cjk">${inc ? '収入' : '支払'}</span></h3>`);
+      h.push(`<h3><span>${f.id ? 'Правка' : 'Новый'} ${inc ? 'доход' : 'платёж'}</span><span class="cjk">${inc ? '收入' : '付款'}</span></h3>`);
       h.push(`<div class="f-lbl">Название</div><input class="inp" data-f="name" placeholder="${inc ? 'Зарплата, аванс…' : 'Аренда, интернет…'}" value="${esc(f.name)}">`);
       h.push(`<div class="f-lbl">Сумма в месяц</div><input class="inp" data-f="amt" inputmode="decimal" placeholder="0" value="${esc(f.amt)}">`);
       h.push(`<div class="f-lbl">Какого числа</div><input class="inp" data-f="day" inputmode="numeric" placeholder="1–31" value="${esc(f.day)}">`);
@@ -854,7 +854,7 @@ table.motion th{color:var(--grey);font-weight:500}
       h.push(`<div class="f-lbl">Категория</div><div class="chips">${userCats(f.type).map(c => chip(c.id === f.cat, 'setCat', c.id, `${ICON[c.name] || '支'} ${SHORT[c.name] || c.name}`)).join('')}</div>`);
       if (inc) h.push(`<p class="info">Зарплата два раза в месяц — это два дохода: например «Аванс» 10-го и «Зарплата» 25-го.</p>`);
       h.push('<div style="height:12px"></div>' + btn('primary', 'saveRec', 'Сохранить', '<span class="arrows">⇲⇲</span>'));
-      if (f.id) h.push(btn('ghost', 'delRec', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">削除</span>'));
+      if (f.id) h.push(btn('ghost', 'delRec', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">删除</span>'));
       h.push(btn('ghost', 'cancel', 'Отмена', '<span class="cjk">取消</span>'));
     }
     sheet.innerHTML = h.join('');
