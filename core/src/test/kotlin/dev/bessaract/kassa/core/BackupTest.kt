@@ -104,5 +104,9 @@ class BackupTest {
         assertEquals(listOf("g2"), plan.goals.map { it.id })
         // 1 строка плана + 3 операции + 1 цель уже есть
         assertEquals(5, plan.skipped)
+        // новый взнос из копии в цель, что уже есть в телефоне, прибавится к её накопленному
+        val top = Tx("t9", 1, TxType.EXP, 700_00, "RUB", 700_00, "c_goal", "", "", "Я", "2026-10-20", "Китай", TxRef(RefKind.GOAL, "g1"))
+        val p2 = mergePlan(d.copy(tx = tx + top), cats, listOf("Я", "Варя"), rec, tx.map { it.id }.toSet(), listOf(goals[0]))
+        assertEquals(mapOf("g1" to 700_00L), p2.goalTopUps)
     }
 }

@@ -85,14 +85,14 @@ interface KassaDao {
     /** Взнос в цель: операция и накопленное меняются вместе. */
     @Transaction
     suspend fun contribute(tx: TxEntity, goalId: String) {
-        insertTx(listOf(tx)); addGoalSaved(goalId, tx.amt)
+        insertTx(listOf(tx)); addGoalSaved(goalId, tx.rub)
     }
 
     /** Удаление операции; если это взнос в цель — накопленное уменьшается (как в kassa.html). */
     @Transaction
     suspend fun deleteTxAndUndo(id: String) {
         val t = txById(id) ?: return
-        if (t.refKind == "goal" && t.refId != null) addGoalSaved(t.refId, -t.amt)
+        if (t.refKind == "goal" && t.refId != null) addGoalSaved(t.refId, -t.rub)
         deleteTx(id)
     }
 
@@ -119,7 +119,15 @@ interface KassaDao {
 
     /** Добавить всё из копии одной транзакцией: либо всё, либо ничего. */
     @Transaction
-    suspend fun insertBackup(cats: List<CategoryEntity>, persons: List<PersonEntity>, rec: List<RecurringEntity>, tx: List<TxEntity>, goals: List<GoalEntity>) {
+    suspend fun insertBackup(
+        cats: List<CategoryEntity>, persons: List<PersonEntity>, rec: List<RecurringEntity>, tx: List<TxEntity>,
+        goals: List<GoalEntity>, goalTopUps: Map<String, Long>,
+    ) {
         insertCategories(cats); insertPersons(persons); insertRecurring(rec); insertGoals(goals); insertTx(tx)
+        goalTopUps.forEach { (id, delta) -> addGoalSaved(id, delta) }
     }
+
+    /** Правка цели без накопленного: взнос, сделанный пока открыта форма, не затрётся. */
+    @Query("UPDATE goals SET name = :name, target = :target, by_date = :by WHERE id = :id")
+    suspend fun updateGoalInfo(id: String, name: String, target: Long, by: String)
 }

@@ -503,9 +503,10 @@ table.motion th{color:var(--grey);font-weight:500}
   function goalPlan(g) {
     const td = today(), month = sum(monthTx(td.slice(0, 7)).filter(t => t.ref && t.ref.k === 'goal' && t.ref.id === g.id), t => t.rub);
     if (!g.by) return { month, plan: 0, reserve: 0, months: 0 };
-    const need = Math.max(0, g.target - (g.saved - month));
+    // в копейках: иначе дробные хвосты (30006.000000000004) округлились бы вверх лишним рублём
+    const need = Math.max(0, Math.round(g.target * 100) - Math.round((g.saved - month) * 100));
     const months = Math.max(1, (+g.by.slice(0, 4) * 12 + +g.by.slice(5, 7)) - (+td.slice(0, 4) * 12 + +td.slice(5, 7)) + 1);
-    const plan = Math.ceil(need / months);
+    const plan = Math.ceil(need / (months * 100));
     return { month, plan, reserve: Math.max(0, plan - month), months };
   }
   const paidTx = id => monthTx(today().slice(0, 7)).find(t => t.ref && t.ref.k === 'rec' && t.ref.id === id);
@@ -824,6 +825,8 @@ table.motion th{color:var(--grey);font-weight:500}
     pickImport() { form.err = ''; filePick.click(); },
     doImport() {
       const m = mergePlan(form.pending);
+      // новые взносы в цели, что уже есть, прибавляем к накопленному (у целей из копии saved уже с ними)
+      m.tx.forEach(t => { const g = t.ref && t.ref.k === 'goal' && S.goals.find(x => x.id === t.ref.id); if (g) g.saved += t.rub; });
       S.cats.push(...m.cats); S.persons.push(...m.persons); S.rec.push(...m.rec); S.goals.push(...m.goals); S.tx.push(...m.tx);
       save(); closeSheet(); render(true); toast(`Добавлено: ${m.tx.length} операций, ${m.rec.length} строк плана`);
     },

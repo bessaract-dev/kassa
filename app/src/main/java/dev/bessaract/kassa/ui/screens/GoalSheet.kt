@@ -49,6 +49,7 @@ private fun parseDate(text: String): LocalDate? {
     val m = p[1].toIntOrNull() ?: return null
     var y = p[2].toIntOrNull() ?: return null
     if (p[2].length == 2) y += 2000
+    if (y !in 2000..2100) return null
     return runCatching { LocalDate.of(y, m, d) }.getOrNull()
 }
 
@@ -85,7 +86,8 @@ fun GoalSheetContent(
             sv < 0 -> err = "Накоплено — не меньше нуля"
             by.isNotBlank() && date == null -> err = "Дата в виде 30.12.2026"
             date != null && date < s.today && date.toString() != original?.by -> err = "Дата уже прошла"
-            else -> onSave(GoalDraft(original?.id, name.trim(), t, sv, date))
+            // накопленное не меняли — null: в базе могло уже прибавиться от «Отложить»
+            else -> onSave(GoalDraft(original?.id, name.trim(), t, if (original != null && saved == amountInput(original.saved)) null else sv, date))
         }
     }
 

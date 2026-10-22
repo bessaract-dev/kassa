@@ -51,6 +51,9 @@ class TxRepository(private val dao: KassaDao) {
         dao.upsertGoal(g.toEntity(pos))
     }
 
+    /** Правка цели, накопленное не трогаем. */
+    suspend fun updateGoalInfo(g: Goal) = dao.updateGoalInfo(g.id, g.name, g.target, g.by)
+
     /** Взносы остаются в истории, как в kassa.html. */
     suspend fun deleteGoal(id: String) = dao.deleteGoal(id)
 
@@ -101,6 +104,7 @@ class TxRepository(private val dao: KassaDao) {
             rec = p.rec.mapIndexed { i, r -> r.toEntity(recPos + i) },
             tx = p.tx.map { it.toEntity() },
             goals = p.goals.mapIndexed { i, g -> g.toEntity(goalPos + i) },
+            goalTopUps = p.goalTopUps,
         )
     }
 }

@@ -100,12 +100,12 @@ sealed interface BackupUi {
     data class Error(val message: String) : BackupUi
 }
 
-/** Черновик цели. id = null — новая. by — дата «накопить к» или null. */
+/** Черновик цели. id = null — новая. saved = null — накопленное в форме не меняли. by — дата «накопить к» или null. */
 data class GoalDraft(
     val id: String?,
     val name: String,
     val target: Long,
-    val saved: Long,
+    val saved: Long?,
     val by: LocalDate?,
 )
 
@@ -312,7 +312,9 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun saveGoal(d: GoalDraft) {
         viewModelScope.launch {
             val old = state.value?.goals?.find { it.id == d.id }
-            repo.saveGoal(Goal(d.id ?: newId(), d.name.trim(), d.target, d.saved, old?.monthly ?: 0, d.by?.toString().orEmpty()))
+            val g = Goal(d.id ?: newId(), d.name.trim(), d.target, d.saved ?: old?.saved ?: 0, old?.monthly ?: 0, d.by?.toString().orEmpty())
+            // накопленное не правили — его не пишем: «Отложить» мог успеть изменить его в базе
+            if (old != null && d.saved == null) repo.updateGoalInfo(g) else repo.saveGoal(g)
         }
     }
 

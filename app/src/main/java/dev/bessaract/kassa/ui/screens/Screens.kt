@@ -232,7 +232,8 @@ fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onAdd: (
         )
         Column(Modifier.padding(top = 10.dp, bottom = 8.dp)) {
             SplitRow("Доходы", "+" + formatRub(b.planInc, symbol = false))
-            SplitRow("Обязательные платежи", "−" + formatRub(recExp, symbol = false))
+            // всё обязательное, кроме целей (с 0.7 сюда войдут и платежи по кредитам)
+            SplitRow("Обязательные платежи", "−" + formatRub(b.fixed - b.goalsReserve, symbol = false))
             if (b.goalsReserve > 0) SplitRow("На цели", "−" + formatRub(b.goalsReserve, symbol = false))
         }
     }

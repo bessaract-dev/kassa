@@ -115,7 +115,7 @@ fun decodeBackup(text: String): BackupParse {
                 goals = list(cfg["goals"]) {
                     // дата цели — только настоящая; кривая превращает цель в копилку, а не портит весь файл
                     val by = (it["by"] as? String)?.takeIf { d -> DATE.matches(d) && runCatching { LocalDate.parse(d) }.isSuccess }.orEmpty()
-                    Goal(str(it, "id"), str(it, "name", ""), amount(it["target"]), amount(it["saved"] ?: 0.0), kop(it["monthly"] ?: 0.0), by)
+                    Goal(str(it, "id"), str(it, "name", ""), kop(it["target"]).coerceAtLeast(0), kop(it["saved"] ?: 0.0).coerceAtLeast(0), kop(it["monthly"] ?: 0.0), by)
                 },
                 tx = tx,
                 exported = o["exported"] as? String,
@@ -164,6 +164,8 @@ data class MergePlan(
     val tx: List<Tx>,
     val skipped: Int,
     val goals: List<Goal> = emptyList(),
+    /** Сколько прибавить к накопленному целей, что уже есть в телефоне: новые взносы в них из копии. */
+    val goalTopUps: Map<String, Long> = emptyMap(),
 ) {
     val isEmpty: Boolean get() = cats.isEmpty() && persons.isEmpty() && rec.isEmpty() && tx.isEmpty() && goals.isEmpty()
 }
@@ -201,5 +203,8 @@ fun mergePlan(
         tx = newTx,
         skipped = (data.rec.size - newRec.size) + (data.tx.size - newTx.size) + (data.goals.size - newGoals.size),
         goals = newGoals,
+        // цель из копии приходит со своим saved, где её взносы уже учтены; у цели из телефона — нет
+        goalTopUps = newTx.filter { it.ref?.kind == RefKind.GOAL && it.ref.id in goalIds }
+            .groupBy { it.ref!!.id }.mapValues { (_, l) -> l.sumOf { it.rub } },
     )
 }

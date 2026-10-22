@@ -27,7 +27,7 @@
 
 ## Модель данных (переносить 1:1)
 - config: accounts[{id,name,cur,init}], cats[{id,name,type:'exp'|'inc',limit}], persons[], rates{USD:число},
-  rec[{id,type,name,amt,day,cat,acc}], loans[{id,name,total,balance,pay,rate,day}], goals[{id,name,target,saved,monthly}].
+  rec[{id,type,name,amt,day,cat,acc}], loans[{id,name,total,balance,pay,rate,day}], goals[{id,name,target,saved,monthly,by}] (by — «накопить к» ГГГГ-ММ-ДД или пусто; monthly с 0.6 не используется).
 - Операция tx: {id,ts,t:'exp'|'inc'|'tr',amt,cur,rub,cat,acc,to,who,d:'ГГГГ-ММ-ДД',note,ref?}.
   ref = {k:'rec'|'loan'|'goal', id, princ?} — связь с планом, кредитом или целью. «Обычные» траты = без ref.
 - Системные категории: c_loan (Кредиты), c_goal (Накопления). Их нельзя удалить.
@@ -35,8 +35,10 @@
 - Валюты: рубль базовый, курс задаётся вручную; операция хранит и amt в своей валюте, и rub по курсу на день внесения.
 
 ## Формулы
-- fixed = Σ rec(exp).amt + Σ loans(balance>0).pay + Σ goals(saved<target).monthly
-- free (свободно до конца месяца) = Σ rec(inc).amt + Σ разовых inc без ref − fixed − Σ exp без ref за месяц
+- fixed = Σ rec(exp).amt + Σ loans(balance>0).pay + Σ резерв целей с датой (с 0.6, см. DECISIONS 0.6.0)
+- Цель с датой: план месяца = ⌈(target − saved на начало месяца) / месяцев до даты, включая текущий⌉ до рубля; резерв = max(0, план − отложено в этом месяце). Цель без даты — копилка, резерва нет.
+- Взносы в цели (exp с ref goal) входят в траты месяца для free, но не в spentToday.
+- free (свободно до конца месяца) = Σ rec(inc).amt + Σ разовых inc без ref − fixed − Σ exp без ref за месяц − Σ взносов в цели за месяц
 - left = дней до конца месяца, включая сегодня
 - dayLimit = (free + spentToday) / left; leftToday = dayLimit − spentToday
 - Платёж по кредиту: interest = balance × rate / 1200; princ = min(balance, max(0, amt − interest)); balance −= princ.
