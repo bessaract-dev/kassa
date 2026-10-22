@@ -119,6 +119,18 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .dark::before{content:"";position:absolute;inset:1px;background:var(--surface);clip-path:inherit;z-index:0}
 .dark>*{position:relative;z-index:1}
 .over.lime{background:var(--bad);color:var(--ink)}
+/* Главная плашка — «стекло» (2026-10-22, на пробу): та же форма и цвет, но полупрозрачная,
+   с размытием того, что под ней, и точечной текстурой рифлёного стекла. */
+.panel.lime.shape-a{background:rgba(200,255,0,.88);isolation:isolate;
+  -webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4)}
+.panel.lime.shape-a.over{background:rgba(255,61,46,.88)}
+.panel.lime.shape-a::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(circle at 38% 38%,rgba(255,255,255,.55) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 55% 55%,rgba(0,0,0,.16) 0 2.3px,transparent 3px),
+    linear-gradient(125deg,rgba(255,255,255,.28),rgba(255,255,255,0) 38%,rgba(0,0,0,0) 62%,rgba(0,0,0,.14));
+  background-size:7px 7px,7px 7px,100% 100%;
+  -webkit-mask-image:linear-gradient(105deg,rgba(0,0,0,.35),#000 70%);mask-image:linear-gradient(105deg,rgba(0,0,0,.35),#000 70%)}
 
 .lbl{display:flex;justify-content:space-between;align-items:center;font-size:calc(10px * var(--fs, 1));letter-spacing:.12em;text-transform:uppercase;font-weight:600}
 .lbl .cjk{font-size:calc(13px * var(--fs, 1));letter-spacing:.05em}
