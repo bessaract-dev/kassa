@@ -81,9 +81,27 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* ===== панели ===== */
 .panel{position:relative;padding:16px;margin-bottom:12px}
 /* вырез: срез справа сверху + «ступенька» в верхней грани + срез слева снизу */
-.shape-a{clip-path:polygon(0 0,58% 0,calc(58% + 10px) 10px,calc(100% - var(--cut)) 10px,100% calc(10px + var(--cut)),100% 100%,var(--cut) 100%,0 calc(100% - var(--cut)))}
-.shape-b{clip-path:polygon(0 0,calc(100% - var(--cut)) 0,100% var(--cut),100% 100%,calc(100% - 40%) 100%,calc(60% - 8px) calc(100% - 8px),0 calc(100% - 8px))}
-.shape-c{clip-path:polygon(var(--cut-s) 0,100% 0,100% calc(100% - var(--cut-s)),calc(100% - var(--cut-s)) 100%,0 100%,0 var(--cut-s))}
+/* v3.1: крупные срезы как у референса-«жетона» + оторванные куски (см. .hud-wrap) */
+.shape-a{clip-path:polygon(22px 0,calc(100% - 104px) 0,calc(100% - 96px) 8px,calc(100% - 34px) 8px,100% 42px,100% calc(100% - 28px),calc(100% - 28px) 100%,26px 100%,8px calc(100% - 18px),8px 58%,0 calc(58% - 8px),0 22px)}
+.shape-b{clip-path:polygon(0 0,calc(100% - 30px) 0,100% 30px,100% 38%,calc(100% - 8px) calc(38% + 8px),calc(100% - 8px) calc(100% - 22px),calc(100% - 30px) 100%,42% 100%,calc(42% - 8px) calc(100% - 8px),24px calc(100% - 8px),0 calc(100% - 32px))}
+/* обёртка панели: оторванные куски того же цвета, что и панель */
+.hud-wrap{position:relative;margin-bottom:12px;--hud-c:var(--line)}
+.hud-wrap>.panel{margin-bottom:0}
+.hud-wrap:has(>.lime){--hud-c:var(--lime)}
+.hud-wrap:has(>.paper){--hud-c:var(--paper)}
+.hud-wrap:has(>.over){--hud-c:var(--bad)}
+.hud-wrap>i{position:absolute;pointer-events:none;background:var(--hud-c);transition:background var(--t-base)}
+/* A: планка слева снаружи, штриховка в нижнем вырезе, рельс над правым срезом */
+.hud-a .bar{left:-9px;top:34px;width:5px;height:calc(58% - 52px);clip-path:polygon(0 5px,100% 0,100% 100%,0 calc(100% - 5px))}
+.hud-a .hatch-l{left:0;top:calc(58% + 6px);width:5px;height:calc(42% - 34px);background:repeating-linear-gradient(-45deg,var(--hud-c) 0 3px,transparent 3px 6px)}
+.hud-a .rail{right:-7px;top:-7px;width:112px;height:44px;background:none}
+.hud-a .rail::before{content:"";position:absolute;inset:0;background:var(--hud-c);clip-path:polygon(0 0,calc(100% - 41px) 0,100% 41px,100% 44px,calc(100% - 2px) 44px,calc(100% - 2px) 42px,calc(100% - 42px) 2px,0 2px)}
+.hud-a .tick{right:-9px;top:calc(42px + 18%);width:5px;height:22%;background:repeating-linear-gradient(-45deg,var(--hud-c) 0 3px,transparent 3px 6px)}
+/* B: планка в правом вырезе, отдельный уголок снизу слева */
+.hud-b .bar{right:0;top:calc(38% + 18px);width:4px;height:calc(62% - 46px)}
+.hud-b .corner{left:-8px;bottom:-1px;width:30px;height:30px;clip-path:polygon(0 0,4px 0,4px 4px,30px 30px,26px 30px,0 4px)}
+.hud-b .tick{left:-9px;top:20px;width:5px;height:30%;background:repeating-linear-gradient(-45deg,var(--hud-c) 0 3px,transparent 3px 6px)}
+.shape-c{--cut-s:12px;clip-path:polygon(var(--cut-s) 0,100% 0,100% calc(100% - var(--cut-s)),calc(100% - var(--cut-s)) 100%,0 100%,0 var(--cut-s))}
 .lime{background:var(--lime);color:var(--ink)}
 .paper{background:var(--paper);color:var(--ink)}
 .dark{background:var(--line)}
@@ -137,7 +155,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .nav button.on{color:var(--lime)}
 .nav button.on::before{content:"";position:absolute;top:-1px;left:22%;right:22%;height:3px;background:var(--lime)}
 .nav .fab{justify-self:center;padding:0;width:62px;height:62px;margin-top:-34px;background:var(--lime);color:var(--ink);font:800 calc(34px * var(--fs, 1))/1 var(--display);
-  clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);display:grid;place-items:center}
+  clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px);-webkit-mask:linear-gradient(135deg,#000 70%,transparent 70% 76%,#000 76%);mask:linear-gradient(135deg,#000 70%,transparent 70% 76%,#000 76%);display:grid;place-items:center}
 
 /* нажатие: сдвиг + инверсия на миг */
 .press{transition:transform var(--t-fast) var(--ease-out),filter var(--t-fast)}
@@ -161,8 +179,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .chip{padding:7px 10px;font-size:calc(11px * var(--fs, 1));background:var(--raised);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
 .chip.on{background:var(--lime);color:var(--ink);font-weight:700}
 .btn{display:flex;justify-content:space-between;align-items:center;width:100%;padding:15px 16px;font:800 calc(15px * var(--fs, 1)) var(--display);text-transform:uppercase;letter-spacing:.04em}
-.btn.primary{background:var(--lime);color:var(--ink);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
-.btn.ghost{color:var(--text);outline:1px solid var(--line);outline-offset:-1px}
+.btn.primary{background:var(--lime);color:var(--ink);padding-right:44px;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px);
+  -webkit-mask:linear-gradient(105deg,#000 calc(100% - 34px),transparent calc(100% - 34px) calc(100% - 28px),#000 calc(100% - 28px));mask:linear-gradient(105deg,#000 calc(100% - 34px),transparent calc(100% - 34px) calc(100% - 28px),#000 calc(100% - 28px))}
+.btn.ghost{color:var(--text);background:var(--line);clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px);position:relative}
+.btn.ghost::before{content:"";position:absolute;inset:1px;background:var(--surface);clip-path:inherit;z-index:-1}
+.btn.ghost{isolation:isolate}
 
 /* ===== появление: «вытирание» панелей ===== */
 .reveal{animation:wipe var(--t-base) var(--ease-out) both;animation-delay:calc(var(--i,0) * var(--stagger))}
@@ -398,9 +419,10 @@ table.motion th{color:var(--grey);font-weight:500}
 
     <h2><span class="n">03</span>Формы и детали <span class="cjk">形</span></h2>
     <div class="demo-grid">
-      <div class="demo"><div class="t">Панель A · главная</div><div class="d">Ступенька в верхней грани, срезы по диагонали. Для героя экрана.</div><div class="panel lime shape-a" style="height:70px;margin:0"></div></div>
-      <div class="demo"><div class="t">Панель B · вторая</div><div class="d">Срез сверху справа, «язычок» снизу. Белые информационные блоки.</div><div class="panel paper shape-b" style="height:70px;margin:0"></div></div>
+      <div class="demo"><div class="t">Панель A · главная</div><div class="d">Крупные срезы, ступенька сверху, вырез слева снизу. Снаружи — оторванная планка, рельс над углом, штриховки.</div><div class="panel lime shape-a" style="height:90px;margin:0 10px"></div></div>
+      <div class="demo"><div class="t">Панель B · вторая</div><div class="d">Большой срез справа сверху, вырез справа с отдельной планкой, оторванный уголок снизу слева.</div><div class="panel paper shape-b" style="height:90px;margin:0 10px"></div></div>
       <div class="demo"><div class="t">Панель C · строка</div><div class="d">Два малых среза. Списки, операции, карточки категорий.</div><div class="panel dark shape-c" style="height:70px;margin:0"></div></div>
+      <div class="demo"><div class="t">Кнопки</div><div class="d">Срезы 18 dp по диагонали, справа отделённый косой «колпачок». Вторичная — контур.</div><div style="display:flex;flex-direction:column;gap:8px"><button class="btn primary press"><span>Записать</span><span class="arrows">⇲⇲</span></button><button class="btn ghost press"><span>Отмена</span><span class="cjk">取消</span></button></div></div>
       <div class="demo"><div class="t">Декор</div><div class="d">Штриховка, стрелки ⇲, крестики-маркеры, серийники. Не больше 2–3 на панель.</div><div class="stage" style="color:var(--lime);gap:14px;display:flex;justify-content:center"><div class="hatch"></div><span class="arrows">⇲⇲⇲</span><span class="cross" style="position:relative;opacity:1"></span><span style="font-size:calc(9px * var(--fs, 1));color:var(--grey)">SN 48-1508F</span></div></div>
     </div>
 
@@ -435,6 +457,17 @@ table.motion th{color:var(--grey);font-weight:500}
   const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const fmt = n => n.toLocaleString('ru-RU').replace(/ /g, ' ');
+
+  // обёртки панелей A/B: добавляем оторванные куски, анимацию появления переносим на обёртку
+  $$('.panel.shape-a, .panel.shape-b').forEach(el => {
+    const w = document.createElement('div');
+    const a = el.classList.contains('shape-a');
+    w.className = 'hud-wrap ' + (a ? 'hud-a' : 'hud-b');
+    if (el.classList.contains('reveal')) { el.classList.remove('reveal'); w.classList.add('reveal'); w.style.setProperty('--i', el.style.getPropertyValue('--i')); }
+    if (el.style.margin) w.style.margin = el.style.margin;
+    el.replaceWith(w); w.appendChild(el);
+    (a ? ['bar', 'hatch-l', 'rail', 'tick'] : ['bar', 'corner', 'tick']).forEach(c => { const i = document.createElement('i'); i.className = c; w.appendChild(i); });
+  });
 
   // вид страницы: только телефон / телефон + спецификация (запоминается в браузере)
   function setView(v) {
