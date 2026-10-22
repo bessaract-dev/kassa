@@ -70,6 +70,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* служебная строка */
 .sys{display:flex;justify-content:space-between;align-items:center;font-size:calc(10px * var(--fs, 1));color:var(--grey);letter-spacing:.08em;padding:22px 4px 0}
 .sys b{color:var(--text);font-weight:500}
+.sys .gear{color:var(--grey);font-size:calc(15px * var(--fs, 1));line-height:1;padding:2px 2px 2px 10px}
+.sys .gear:hover{color:var(--lime)}
+.stat-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:calc(12px * var(--fs, 1))}
+.stat-row span:first-child{color:var(--grey)}
 
 /* шапка экрана */
 .head{display:flex;align-items:flex-end;justify-content:space-between;margin:18px 0 14px;position:relative}
@@ -515,7 +519,7 @@ table.motion th{color:var(--grey);font-weight:500}
   function head() {
     const b = budget(), d = new Date(), [t, c] = TABS[tab];
     const idx = Object.keys(TABS).map((k, i) => `<span${k === tab ? ' class="on"' : ''}>0${i + 1}</span>`).join('');
-    return `<div class="sys${rv()}"><span>KS-01 // <b>${d.toLocaleDateString('ru-RU')}</b> // ${WD[d.getDay()].toUpperCase()}</span><span>残 <b>${b.left}</b> ДН · <span class="arrows">⇲⇲</span></span></div>
+    return `<div class="sys${rv()}"><span>KS-01 // <b>${d.toLocaleDateString('ru-RU')}</b> // ${WD[d.getDay()].toUpperCase()}</span><span style="white-space:nowrap">残 <b>${b.left}</b> ДН<button class="gear press" data-act="settings" aria-label="Настройки">⚙</button></span></div>
       <div class="head${rv()}"><div><h1 class="glitch" data-text="${t}">${t}</h1><div class="idx">${idx}</div></div><div class="vtag">${[...c].map(x => `<span>${x}</span>`).join('')}</div></div>`;
   }
   function vHome() {
@@ -660,6 +664,23 @@ table.motion th{color:var(--grey);font-weight:500}
       }
       if (f.id) h.push(btn('ghost', 'delTx', f.confirm ? 'Точно удалить?' : 'Удалить', '<span class="cjk">削除</span>'));
       h.push(btn('ghost', 'cancel', 'Отмена', '<span class="cjk">取消</span>'));
+    } else if (f.kind === 'settings') {
+      h.push(`<h3><span>Настройки</span><span class="cjk">設定</span></h3>`);
+      h.push(`<div class="f-lbl">Резервная копия</div>`);
+      if (!f.pending) {
+        h.push(`<p class="info">Один файл со всеми данными: план, категории, операции. Лежит там, куда сохранишь (Загрузки, Диск). Приложение никуда его не отправляет.</p>`);
+        h.push(`<div class="stat-row"><span>Операций</span><span>${S.tx.length}</span></div><div class="stat-row"><span>Строк плана</span><span>${S.rec.length}</span></div>`);
+        if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
+        h.push('<div style="height:12px"></div>' + btn('primary', 'exportJson', 'Сохранить копию', '<span class="arrows">⇲⇲</span>'));
+        h.push(btn('ghost', 'pickImport', 'Восстановить из копии', '<span class="cjk">復元</span>'));
+      } else {
+        const m = mergePlan(f.pending), n = m.tx.length + m.rec.length;
+        h.push(`<p class="info">Копия от ${esc(f.pending.when)}. Добавится только то, чего нет в телефоне. Что уже есть, не меняется.</p>`);
+        h.push(`<div class="stat-row"><span>Новых операций</span><span>${m.tx.length}</span></div><div class="stat-row"><span>Новых строк плана</span><span>${m.rec.length}</span></div><div class="stat-row"><span>Новых категорий</span><span>${m.cats.length}</span></div><div class="stat-row"><span>Уже есть, пропущу</span><span>${f.pending.tx.length - m.tx.length + f.pending.rec.length - m.rec.length}</span></div>`);
+        if (n) h.push('<div style="height:12px"></div>' + btn('primary', 'doImport', 'Добавить из копии', '<span class="arrows">⇲⇲</span>'));
+        else h.push(`<p class="info">Всё из этой копии уже есть в телефоне.</p>`);
+      }
+      h.push(btn('ghost', 'cancel', 'Отмена', '<span class="cjk">取消</span>'));
     } else {
       const inc = f.type === 'inc';
       h.push(`<h3><span>${f.id ? 'Правка' : 'Новый'} ${inc ? 'доход' : 'платёж'}</span><span class="cjk">${inc ? '収入' : '支払'}</span></h3>`);
@@ -683,8 +704,69 @@ table.motion th{color:var(--grey);font-weight:500}
     setTimeout(() => el.remove(), 1800);
   }
 
+  /* ---------- резервная копия: формат как хранилище kassa.html ({cfg, months}) ---------- */
+  const BACKUP_FORMAT = 1;
+  function backupJson() {
+    const months = {};
+    S.tx.slice().sort((a, z) => a.d.localeCompare(z.d) || a.ts - z.ts).forEach(t => (months[t.d.slice(0, 7)] ||= []).push(t));
+    return JSON.stringify({
+      app: 'kassa', format: BACKUP_FORMAT, exported: new Date().toISOString(),
+      cfg: { accounts: [], cats: S.cats, persons: S.persons, rates: {}, rec: S.rec, loans: [], goals: [] },
+      months,
+    }, null, 1);
+  }
+  // Разбор файла копии. Ошибка — строка для пользователя, иначе {cats, persons, rec, tx, when}.
+  function parseBackup(text) {
+    let o; try { o = JSON.parse(text); } catch (e) { return 'Файл не читается: это не JSON.'; }
+    const c = o && o.cfg, m = o && o.months;
+    if (!c || !Array.isArray(c.cats) || !m || typeof m !== 'object') return 'Это не похоже на копию «Кассы».';
+    if (o.format > BACKUP_FORMAT) return 'Копия из более новой версии приложения — сначала обнови приложение.';
+    const tx = Object.values(m).flat();
+    const okTx = t => t && typeof t.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) && ['exp', 'inc', 'tr'].includes(t.t) && isFinite(t.amt) && isFinite(t.rub);
+    const bad = tx.filter(t => !okTx(t)).length;
+    if (bad) return `В файле ${bad} повреждённых операций — восстановление отменено.`;
+    return { cats: c.cats, persons: Array.isArray(c.persons) && c.persons.length ? c.persons : defaults().persons, rec: Array.isArray(c.rec) ? c.rec : [], tx,
+      when: o.exported ? new Date(o.exported).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : 'неизвестной даты' };
+  }
+  // Объединение: добавляем то, чего нет (по id). Категория из файла с тем же названием и типом, что уже есть, — склеивается с существующей.
+  function mergePlan(p) {
+    const catMap = {}, cats = [];
+    p.cats.forEach(c => {
+      const same = S.cats.find(x => x.id === c.id) || S.cats.find(x => x.type === c.type && x.name.trim().toLowerCase() === String(c.name).trim().toLowerCase());
+      if (same) catMap[c.id] = same.id; else { cats.push(c); catMap[c.id] = c.id; }
+    });
+    const fix = o => ({ ...o, cat: catMap[o.cat] || o.cat });
+    const has = (list, id) => list.some(x => x.id === id);
+    return {
+      cats,
+      persons: p.persons.filter(x => !S.persons.includes(x)),
+      rec: p.rec.filter(r => !has(S.rec, r.id)).map(fix),
+      tx: p.tx.filter(t => !has(S.tx, t.id)).map(fix),
+    };
+  }
+  const filePick = document.createElement('input'); filePick.type = 'file'; filePick.accept = '.json,application/json'; filePick.hidden = true; document.body.appendChild(filePick);
+  filePick.onchange = () => {
+    const file = filePick.files[0]; filePick.value = ''; if (!file || !form) return;
+    const r = new FileReader();
+    r.onload = () => { const p = parseBackup(String(r.result)); if (typeof p === 'string') form.err = p; else { form.pending = p; form.err = ''; } drawSheet(); };
+    r.readAsText(file);
+  };
+
   /* ---------- действия ---------- */
   const A = {
+    settings() { openSheet({ kind: 'settings' }); },
+    exportJson() {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([backupJson()], { type: 'application/json' }));
+      a.download = `kassa-${today()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      toast('Копия сохранена');
+    },
+    pickImport() { form.err = ''; filePick.click(); },
+    doImport() {
+      const m = mergePlan(form.pending);
+      S.cats.push(...m.cats); S.persons.push(...m.persons); S.rec.push(...m.rec); S.tx.push(...m.tx);
+      save(); closeSheet(); render(true); toast(`Добавлено: ${m.tx.length} операций, ${m.rec.length} строк плана`);
+    },
     goPlan() { tab = 'plan'; render(true); },
     newRec(el) { const t = el.dataset.type; openSheet({ kind: 'rec', type: t, name: '', amt: '', day: '', cat: userCats(t)[t === 'exp' ? 3 : 0]?.id }); },
     editRec(el) { const r = S.rec.find(x => x.id === el.dataset.id); openSheet({ kind: 'rec', id: r.id, type: r.type, name: r.name, amt: String(r.amt), day: String(r.day), cat: r.cat }); },
@@ -745,7 +827,7 @@ table.motion th{color:var(--grey);font-weight:500}
   }
   scroll.addEventListener('click', onAct);
   sheet.addEventListener('click', onAct);
-  sheet.addEventListener('keydown', e => { if (e.key === 'Enter' && form) { readInputs(); (form.kind === 'tx' ? A.saveTx : A.saveRec)(); } });
+  sheet.addEventListener('keydown', e => { if (e.key === 'Enter' && form && form.kind !== 'settings') { readInputs(); (form.kind === 'tx' ? A.saveTx : A.saveRec)(); } });
   $('#scrim').onclick = closeSheet;
   $('#fab').onclick = () => openSheet(newTx());
   $$('.nav [data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(true); });
