@@ -73,6 +73,9 @@ import dev.bessaract.kassa.ui.components.GlitchTear
 import dev.bessaract.kassa.ui.components.GlitchText
 import dev.bessaract.kassa.ui.components.LocalGlitch
 import dev.bessaract.kassa.ui.components.Traces
+import dev.bessaract.kassa.ui.components.LocalHaze
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import dev.bessaract.kassa.ui.components.rememberMotionEnabled
 import dev.bessaract.kassa.ui.components.gridBackground
 import dev.bessaract.kassa.ui.components.press
@@ -210,9 +213,13 @@ fun KassaContent(
     val glitch = remember { GlitchState() }
     GlitchLoop(glitch, enabled = motion, paused = sheetOpen)
 
-    CompositionLocalProvider(LocalGlitch provides glitch) {
-    Box(Modifier.fillMaxSize().gridBackground()) {
-        Traces(Modifier.fillMaxSize(), animate = motion)
+    // Фон (сетка и трассы) — источник размытия для стеклянных панелей
+    val haze = remember { HazeState() }
+    CompositionLocalProvider(LocalGlitch provides glitch, LocalHaze provides haze) {
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().hazeSource(haze).gridBackground()) {
+            Traces(Modifier.fillMaxSize(), animate = motion)
+        }
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
             Column(
                 Modifier

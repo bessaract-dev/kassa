@@ -16,8 +16,8 @@ android {
         applicationId = "dev.bessaract.kassa"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.6.2"
+        versionCode = 10
+        versionName = "0.6.3"
     }
 
     // Постоянный ключ подписи: без него каждая новая сборка не ставится поверх старой и данные пропадают.
@@ -78,6 +78,8 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
+    // фоновое размытие под стеклянными панелями (RenderEffect, Android 12+); в сеть не ходит
+    implementation(libs.haze)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
 

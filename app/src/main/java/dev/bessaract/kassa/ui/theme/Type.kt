@@ -1,35 +1,31 @@
 package dev.bessaract.kassa.ui.theme
 
-import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import dev.bessaract.kassa.R
 
-// Шрифты лежат в APK (res/font) — без загрузки из сети. Оба файла вариативные: толщина задаётся осью wght.
-// Размеры — таблица «Шрифты» из docs/STYLE.md.
-
-@OptIn(ExperimentalTextApi::class)
-private fun variable(res: Int, weight: Int) =
-    Font(res, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight)))
+// Шрифты лежат в APK (res/font) — без загрузки из сети. Размеры — таблица «Шрифты» из docs/STYLE.md.
+// Каждая толщина — отдельный статический файл, нарезанный из вариативных Tektur и JetBrains Mono (fonttools instancer).
+// Один вариативный файл на несколько толщин на телефоне не работал: Android кэширует шрифт по id ресурса
+// и все толщины выходили обычными (0.6.2, 2026-10-22).
 
 /** Tektur — заголовки, цифры, кнопки. */
 val Tektur = FontFamily(
-    variable(R.font.tektur, 600),
-    variable(R.font.tektur, 700),
-    variable(R.font.tektur, 800),
+    Font(R.font.tektur_600, FontWeight.W600),
+    Font(R.font.tektur_700, FontWeight.W700),
+    Font(R.font.tektur_800, FontWeight.W800),
 )
 
 /** JetBrains Mono — текст и ярлыки. */
 val JetBrainsMono = FontFamily(
-    variable(R.font.jetbrains_mono, 400),
-    variable(R.font.jetbrains_mono, 500),
-    variable(R.font.jetbrains_mono, 600),
-    variable(R.font.jetbrains_mono, 700),
+    Font(R.font.jetbrains_mono_400, FontWeight.W400),
+    Font(R.font.jetbrains_mono_500, FontWeight.W500),
+    Font(R.font.jetbrains_mono_600, FontWeight.W600),
+    Font(R.font.jetbrains_mono_700, FontWeight.W700),
 )
 
 /** Иероглифы — системный CJK-шрифт (Noto Sans CJK SC на Android). */

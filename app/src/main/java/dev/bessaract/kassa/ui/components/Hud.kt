@@ -1,6 +1,10 @@
 package dev.bessaract.kassa.ui.components
 
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.staticCompositionLocalOf
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
@@ -131,7 +135,7 @@ enum class PanelKind(val bg: Color, val fg: Color) {
 /**
  * Панель v3. Тёмная — с рамкой цвета line; [highlight] — заполненная строка списка: рамка лайм 45% и отсвет слева.
  * Светлые панели A и B — «стекло» (2026-10-22, макет Figma): полупрозрачная заливка, зерно, свечение цвета панели,
- * светлая кромка. Размытия под панелью в Android нет, поэтому заливка плотнее, чем в прототипе (62% / 88%).
+ * светлая кромка. Фон под панелью размывается через Haze (источник — [LocalHaze]); без него заливка плотнее.
  * [onClick] у стеклянной панели — нажатие с утапливанием и наклоном к пальцу. При перерасходе LIME → BAD плавно.
  */
 @Composable
@@ -148,13 +152,22 @@ fun Panel(
     val glass = kind != PanelKind.DARK && (shape === ShapeA || shape === ShapeB)
     var m = modifier.fillMaxWidth()
     if (glass) {
-        val fill = bg.copy(alpha = if (kind == PanelKind.PAPER) GLASS_PAPER else GLASS_LIME)
+        val haze = LocalHaze.current
+        // с размытием — плотность как в прототипе (62% / 88%), без него (листы, тесты) — плотнее
+        val alpha = when {
+            haze != null && kind == PanelKind.PAPER -> 0.88f
+            haze != null -> 0.62f
+            kind == PanelKind.PAPER -> GLASS_PAPER
+            else -> GLASS_LIME
+        }
+        val fill = bg.copy(alpha = alpha)
         val grain = rememberGrain()
         if (onClick != null) m = m.glassPress(onClick)
         m = m.glassGlow(shape) { bg }
             .panelDecor(shape) { bg.copy(alpha = 0.65f) }
             .clip(shape)
-            .background(fill)
+        if (haze != null) m = m.hazeEffect(haze, GlassBlur)
+        m = m.background(fill)
             .drawBehind {
                 // зерно: чёрный шум ~18%, умножение
                 drawRect(ShaderBrush(ImageShader(grain, TileMode.Repeated, TileMode.Repeated)), alpha = 0.18f, blendMode = BlendMode.Multiply)
@@ -216,6 +229,12 @@ private fun Modifier.panelDecor(shape: Shape, color: () -> Color): Modifier =
             hatchRect(c, -p(9f), p(20f), -p(4f), p(20f) + h * 0.3f)
         }
     }
+
+/** Источник фонового размытия (сетка и трассы под экраном); null — размытия нет, стекло просто плотнее. */
+val LocalHaze = staticCompositionLocalOf<HazeState?> { null }
+
+/** Размытие под стеклом: как backdrop-filter: blur(5px) в прототипе, без своего тинта — заливку рисует панель. */
+private val GlassBlur = HazeStyle(backgroundColor = KassaColors.Bg, tints = emptyList(), blurRadius = 5.dp, noiseFactor = 0f)
 
 private const val GLASS_LIME = 0.74f
 private const val GLASS_PAPER = 0.93f
