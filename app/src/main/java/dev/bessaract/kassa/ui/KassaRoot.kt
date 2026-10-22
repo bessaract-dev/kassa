@@ -36,6 +36,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +61,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.bessaract.kassa.core.calc.daysLeft
 import dev.bessaract.kassa.core.model.Tx
 import dev.bessaract.kassa.ui.components.Arrows
+import dev.bessaract.kassa.ui.components.GlitchLoop
+import dev.bessaract.kassa.ui.components.GlitchState
+import dev.bessaract.kassa.ui.components.GlitchTarget
+import dev.bessaract.kassa.ui.components.GlitchTear
+import dev.bessaract.kassa.ui.components.GlitchText
+import dev.bessaract.kassa.ui.components.LocalGlitch
+import dev.bessaract.kassa.ui.components.Traces
+import dev.bessaract.kassa.ui.components.rememberMotionEnabled
 import dev.bessaract.kassa.ui.components.gridBackground
 import dev.bessaract.kassa.ui.components.press
 import dev.bessaract.kassa.ui.components.reveal
@@ -112,7 +121,13 @@ fun KassaContent(
 
     BackHandler(enabled = sheetOpen) { closeSheet() }
 
+    val motion = rememberMotionEnabled()
+    val glitch = remember { GlitchState() }
+    GlitchLoop(glitch, enabled = motion, paused = sheetOpen)
+
+    CompositionLocalProvider(LocalGlitch provides glitch) {
     Box(Modifier.fillMaxSize().gridBackground()) {
+        Traces(Modifier.fillMaxSize(), animate = motion)
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
             Column(
                 Modifier
@@ -138,6 +153,9 @@ fun KassaContent(
             }
             BottomNav(tab, onSelect = { tab = it }, onAdd = { if (s != null) sheet = NEW_TX })
         }
+
+        // Полоса глитча — поверх экрана, но под листом ввода
+        GlitchTear(Modifier.fillMaxSize())
 
         // Затемнение под листом
         AnimatedVisibility(
@@ -193,6 +211,7 @@ fun KassaContent(
             }
         }
     }
+    }
 }
 
 /** Служебная строка: KS-01 // дата // день недели, справа — сколько дней до конца месяца. */
@@ -210,7 +229,7 @@ private fun SysLine(s: SpendingState) {
 private fun Head(tab: Tab) {
     Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp).reveal(1), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
-            Text(tab.label.uppercase(), style = KassaType.ScreenTitle)
+            GlitchText(tab.label.uppercase(), KassaType.ScreenTitle, GlitchTarget.TITLE)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Tab.entries.forEach { t ->
                     val on = t == tab

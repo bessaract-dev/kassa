@@ -16,8 +16,8 @@ android {
         applicationId = "dev.bessaract.kassa"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 4
+        versionName = "0.3.0"
     }
 
     // Постоянный ключ подписи: без него каждая новая сборка не ставится поверх старой и данные пропадают.

@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,19 +37,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.bessaract.kassa.ui.theme.KassaColors
 import dev.bessaract.kassa.ui.theme.KassaType
 import dev.bessaract.kassa.ui.theme.Motion
-import dev.bessaract.kassa.ui.theme.ShapeButton
+import dev.bessaract.kassa.ui.theme.ButtonVariants
+import dev.bessaract.kassa.ui.theme.ShapeA
+import dev.bessaract.kassa.ui.theme.ShapeB
+import dev.bessaract.kassa.ui.theme.buttonShape
+import dev.bessaract.kassa.ui.theme.buttonVariantIndex
 import dev.bessaract.kassa.ui.theme.ShapeC
 import dev.bessaract.kassa.ui.theme.ShapeChip
 import kotlinx.coroutines.delay
@@ -109,7 +120,7 @@ fun Panel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val bg by animateColorAsState(kind.bg, tween(Motion.BASE, easing = Motion.EaseOut), label = "panel")
-    var m = modifier.fillMaxWidth().clip(shape).background(bg)
+    var m = modifier.fillMaxWidth().panelDecor(shape) { if (kind == PanelKind.DARK) KassaColors.Line else bg }.clip(shape).background(bg)
     if (kind == PanelKind.DARK) m = m.border(1.dp, KassaColors.Line, shape)
     Box(m) {
         Column(Modifier.padding(padding)) {
@@ -117,6 +128,48 @@ fun Panel(
                 androidx.compose.material3.LocalContentColor provides kind.fg,
             ) { content() }
         }
+    }
+}
+
+/**
+ * Оторванные куски панелей A и B (формы v3.1) — того же цвета, что панель, рисуются за её границами.
+ * A: планка слева снаружи, штриховка в нижнем вырезе слева, рельс сверху справа параллельно грани и срезу (зазор 6 dp).
+ * B: планка в правом вырезе, оторванный уголок снизу слева, штриховка слева снаружи.
+ */
+private fun Modifier.panelDecor(shape: Shape, color: () -> Color): Modifier =
+    if (shape !== ShapeA && shape !== ShapeB) this else drawBehind {
+        val c = color(); val w = size.width; val h = size.height
+        fun p(v: Float) = v.dp.toPx()
+        fun poly(vararg pts: Float) = Path().apply {
+            moveTo(pts[0], pts[1]); var i = 2
+            while (i < pts.size) { lineTo(pts[i], pts[i + 1]); i += 2 }
+            close()
+        }
+        if (shape === ShapeA) {
+            val y = h * 0.58f
+            val top = p(34f); val bottom = y - p(18f)
+            if (bottom > top + p(10f)) drawPath(poly(-p(9f), top + p(5f), -p(4f), top, -p(4f), bottom, -p(9f), bottom - p(5f)), c)
+            hatchRect(c, 0f, y + p(6f), p(5f), h - p(28f))
+            val rail = Path().apply {
+                moveTo(w - p(90f), p(2f)); lineTo(w - p(31.5f), p(2f)); lineTo(w + p(6f), p(39.5f)); lineTo(w + p(6f), p(82f))
+            }
+            drawPath(rail, c, style = Stroke(p(2f)))
+        } else {
+            val y = h * 0.38f
+            drawRect(c, Offset(w - p(4f), y + p(18f)), androidx.compose.ui.geometry.Size(p(4f), (h - p(28f)) - (y + p(18f))))
+            val ox = -p(8f); val oy = h + p(1f) - p(30f)
+            drawPath(poly(ox, oy, ox + p(4f), oy, ox + p(4f), oy + p(4f), ox + p(30f), oy + p(30f), ox + p(26f), oy + p(30f), ox, oy + p(4f)), c)
+            hatchRect(c, -p(9f), p(20f), -p(4f), p(20f) + h * 0.3f)
+        }
+    }
+
+/** Штриховка в прямоугольнике (как repeating-linear-gradient(-45deg, c 0 3px, transparent 3px 6px)). */
+private fun DrawScope.hatchRect(c: Color, l: Float, t: Float, r: Float, b: Float) {
+    if (b <= t) return
+    clipRect(l, t, r, b) {
+        val step = 8.5.dp.toPx(); val sw = 3.dp.toPx(); val span = r - l
+        var y = t - span
+        while (y < b + span) { drawLine(c, Offset(l, y + span), Offset(r, y), sw); y += step }
     }
 }
 
@@ -149,10 +202,11 @@ fun Arrows(count: Int, color: Color) {
 
 /**
  * Подсчёт цифр: при смене суммы разряды «перебираются» случайными цифрами
- * и встают на место слева направо за 440 мс.
+ * и встают на место слева направо за 440 мс. Не влезает по ширине — шрифт уменьшается.
+ * [glitch] — эта цифра может «глитчить» (главная цифра «Сегодня»).
  */
 @Composable
-fun ScrambleText(target: String, style: TextStyle, modifier: Modifier = Modifier) {
+fun ScrambleText(target: String, style: TextStyle, modifier: Modifier = Modifier, glitch: GlitchTarget? = null) {
     var shown by remember { mutableStateOf(target) }
     LaunchedEffect(target) {
         val a = Animatable(0f)
@@ -164,31 +218,58 @@ fun ScrambleText(target: String, style: TextStyle, modifier: Modifier = Modifier
         }
         shown = target
     }
-    Text(shown, style = style, modifier = modifier, maxLines = 1, softWrap = false)
+    val draw: @Composable (Modifier, TextStyle?) -> Unit = { m, over ->
+        BasicText(
+            shown,
+            style = if (over != null) style.merge(over) else style,
+            modifier = m,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = style.fontSize * 0.4f, maxFontSize = style.fontSize),
+        )
+    }
+    if (glitch != null) Glitchable(glitch, modifier, draw) else draw(modifier, null)
 }
 
-/** Основная кнопка: лайм, срезы 14 dp, текст капсом и стрелки ⇲⇲. */
+/** Отступы длинных кнопок v3.1: 26 dp по бокам, 24 сверху (с учётом чёлки), 20 снизу. */
+private val ButtonPadding = Modifier.padding(start = 26.dp, end = 26.dp, top = 24.dp, bottom = 20.dp)
+
+/**
+ * Основная кнопка: лайм, цельная форма с чёлкой, текст капсом в одну строку и стрелки ⇲⇲.
+ * [variant] — номер формы из [ButtonVariants]; по умолчанию по тексту, как в прототипе.
+ * Если на экране несколько кнопок, передай варианты из distinctButtonVariants, чтобы они не повторялись.
+ */
 @Composable
-fun PrimaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun PrimaryButton(text: String, modifier: Modifier = Modifier, variant: Int = buttonVariantIndex(text + "⇲⇲"), onClick: () -> Unit) {
+    val shape = remember(variant) { buttonShape(ButtonVariants[variant]) }
     Row(
-        modifier.fillMaxWidth().press(onClick = onClick).clip(ShapeButton).background(KassaColors.Lime)
-            .padding(horizontal = 16.dp, vertical = 15.dp),
+        modifier.fillMaxWidth().press(onClick = onClick).clip(shape).background(KassaColors.Lime).then(ButtonPadding),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text.uppercase(), style = KassaType.Button.copy(color = KassaColors.Ink), modifier = Modifier.weight(1f))
+        Text(text.uppercase(), style = KassaType.Button.copy(color = KassaColors.Ink), modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
         Arrows(2, KassaColors.Ink)
     }
 }
 
-/** Вторичная кнопка: контур line, справа иероглиф. */
+/** Вторичная кнопка: та же форма контуром line, справа иероглиф. */
 @Composable
-fun GhostButton(text: String, cjk: String, modifier: Modifier = Modifier, color: Color = KassaColors.Text, onClick: () -> Unit) {
+fun GhostButton(
+    text: String,
+    cjk: String,
+    modifier: Modifier = Modifier,
+    color: Color = KassaColors.Text,
+    variant: Int = buttonVariantIndex(text + cjk),
+    onClick: () -> Unit,
+) {
+    val shape = remember(variant) { buttonShape(ButtonVariants[variant]) }
     Row(
-        modifier.fillMaxWidth().press(onClick = onClick).border(1.dp, KassaColors.Line)
-            .padding(horizontal = 16.dp, vertical = 15.dp),
+        modifier.fillMaxWidth().press(onClick = onClick).clip(shape).background(KassaColors.Surface)
+            .border(1.dp, KassaColors.Line, shape).then(ButtonPadding),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text.uppercase(), style = KassaType.Button.copy(color = color), modifier = Modifier.weight(1f))
+        Text(text.uppercase(), style = KassaType.Button.copy(color = color), modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
         Text(cjk, style = KassaType.cjk(12).copy(color = color))
     }
 }

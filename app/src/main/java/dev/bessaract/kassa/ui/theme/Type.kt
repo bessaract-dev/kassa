@@ -63,8 +63,8 @@ object KassaType {
     /** Заголовок нижнего листа. */
     val SheetTitle = TextStyle(fontFamily = Tektur, fontWeight = FontWeight.W800, fontSize = 20.sp, color = KassaColors.Text)
 
-    /** Кнопки: Tektur 800, капс, 15. */
-    val Button = TextStyle(fontFamily = Tektur, fontWeight = FontWeight.W800, fontSize = 15.sp, letterSpacing = 0.04.em)
+    /** Кнопки: Tektur 800, капс, 14, без переноса (формы v3.1). */
+    val Button = TextStyle(fontFamily = Tektur, fontWeight = FontWeight.W800, fontSize = 14.sp, letterSpacing = 0.02.em)
 
     /** Стрелки-декор ⇲⇲. */
     val Arrows = TextStyle(fontFamily = Tektur, fontWeight = FontWeight.W800, fontSize = 14.sp, letterSpacing = (-0.1).em)

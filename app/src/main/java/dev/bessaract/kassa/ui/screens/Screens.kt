@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,7 +23,9 @@ import dev.bessaract.kassa.ui.catIcon
 import dev.bessaract.kassa.ui.components.Arrows
 import dev.bessaract.kassa.ui.components.DaySegments
 import dev.bessaract.kassa.ui.components.EmptyRow
+import dev.bessaract.kassa.ui.components.GlitchTarget
 import dev.bessaract.kassa.ui.components.Hatch
+import dev.bessaract.kassa.ui.components.LocalGlitch
 import dev.bessaract.kassa.ui.components.ListHeader
 import dev.bessaract.kassa.ui.components.OpRow
 import dev.bessaract.kassa.ui.components.Panel
@@ -45,12 +48,18 @@ import java.time.format.DateTimeFormatter
 fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit) {
     val sp = s.spending
     val days = YearMonth.from(s.today).lengthOfMonth()
+    // Главная цифра есть только на этом экране — пока он открыт, глитч может выбрать её.
+    val glitch = LocalGlitch.current
+    DisposableEffect(glitch) {
+        glitch.heroOnScreen = true
+        onDispose { glitch.heroOnScreen = false }
+    }
 
     Panel(ShapeA, PanelKind.LIME, Modifier.reveal(2)) {
         Spacer(Modifier.height(8.dp))
         PanelLabel("Потрачено сегодня", "支出", KassaColors.Ink)
         Row(Modifier.padding(top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
-            ScrambleText(formatRub(sp.today, symbol = false), KassaType.Big.copy(color = KassaColors.Ink))
+            ScrambleText(formatRub(sp.today, symbol = false), KassaType.Big.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false), glitch = GlitchTarget.HERO)
             Text("₽", style = KassaType.Big.copy(fontSize = KassaType.Big.fontSize * 0.5f, color = KassaColors.Ink), modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         }
         Text("операций сегодня: ${sp.todayTx.size}", style = KassaType.Small.copy(color = KassaColors.Ink.copy(alpha = 0.75f)))
@@ -65,7 +74,7 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit) {
     Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(3)) {
         PanelLabel("Потрачено за месяц", "今月", KassaColors.Ink)
         Row(Modifier.padding(top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
-            ScrambleText(formatRub(sp.month, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink))
+            ScrambleText(formatRub(sp.month, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
             Text(" ₽", style = KassaType.Mid.copy(color = KassaColors.Ink))
         }
         DaySegments(days, s.today.dayOfMonth)
@@ -93,7 +102,7 @@ fun HistoryScreen(s: SpendingState, onEdit: (Tx) -> Unit) {
     Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(2)) {
         PanelLabel("Потрачено за месяц", "今月", KassaColors.Ink)
         Row(Modifier.padding(top = 10.dp, bottom = 14.dp), verticalAlignment = Alignment.Bottom) {
-            ScrambleText(formatRub(s.spending.month, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink))
+            ScrambleText(formatRub(s.spending.month, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
             Text(" ₽", style = KassaType.Mid.copy(color = KassaColors.Ink))
         }
     }

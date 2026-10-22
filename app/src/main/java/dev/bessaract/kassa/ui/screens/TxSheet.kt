@@ -42,6 +42,7 @@ import dev.bessaract.kassa.ui.catShort
 import dev.bessaract.kassa.ui.components.Chip
 import dev.bessaract.kassa.ui.components.GhostButton
 import dev.bessaract.kassa.ui.components.PrimaryButton
+import dev.bessaract.kassa.ui.theme.distinctButtonVariants
 import dev.bessaract.kassa.ui.components.press
 import dev.bessaract.kassa.ui.formDay
 import dev.bessaract.kassa.ui.theme.KassaColors
@@ -150,15 +151,19 @@ fun TxSheetContent(
         SheetField(note, "необязательно", onChange = { note = it.take(200) }, onDone = { save() })
 
         Spacer(Modifier.height(16.dp))
-        PrimaryButton("Записать") { save() }
+        // Кнопки одного листа — разные варианты формы (ключи — как текст кнопки в прототипе).
+        val v = remember(original != null) {
+            distinctButtonVariants(listOfNotNull("Записать⇲⇲", if (original != null) "Удалить削除" else null, "Отмена取消"))
+        }
+        PrimaryButton("Записать", variant = v.first()) { save() }
         Spacer(Modifier.height(8.dp))
         if (original != null) {
-            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "削除", color = KassaColors.Bad) {
+            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "削除", color = KassaColors.Bad, variant = v[1]) {
                 if (confirmDelete) onDelete(original.id) else confirmDelete = true
             }
             Spacer(Modifier.height(8.dp))
         }
-        GhostButton("Отмена", "取消", onClick = onCancel)
+        GhostButton("Отмена", "取消", variant = v.last(), onClick = onCancel)
     }
 }
 
