@@ -35,6 +35,25 @@ interface KassaDao {
     @Query("SELECT * FROM tx WHERE d BETWEEN :month || '-01' AND :month || '-31' ORDER BY d DESC, ts DESC")
     fun monthTx(month: String): Flow<List<TxEntity>>
 
+    /** Движение денег по счетам за всё время: суммы по виду операции и паре счетов. */
+    @Query("SELECT t, acc, to_acc, SUM(rub) AS rub FROM tx WHERE acc != '' OR to_acc != '' GROUP BY t, acc, to_acc")
+    fun accMoves(): Flow<List<AccMoveRow>>
+
+    @Query("SELECT t, acc, to_acc, SUM(rub) AS rub FROM tx WHERE acc != '' OR to_acc != '' GROUP BY t, acc, to_acc")
+    suspend fun accMovesNow(): List<AccMoveRow>
+
+    @Upsert
+    suspend fun upsertAccount(acc: AccountEntity)
+
+    @Query("SELECT position FROM accounts WHERE id = :id")
+    suspend fun accountPosition(id: String): Int?
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM accounts")
+    suspend fun maxAccountPosition(): Int
+
+    @Query("DELETE FROM accounts WHERE id = :id")
+    suspend fun deleteAccount(id: String)
+
     @Query("SELECT COUNT(*) FROM tx")
     fun txCount(): Flow<Int>
 
@@ -156,6 +175,7 @@ interface KassaDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertTx(list: List<TxEntity>)
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertGoals(list: List<GoalEntity>)
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertLoans(list: List<LoanEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertAccounts(list: List<AccountEntity>)
 
     /** Добавить всё из копии одной транзакцией: либо всё, либо ничего. */
     @Transaction
@@ -163,7 +183,9 @@ interface KassaDao {
         cats: List<CategoryEntity>, persons: List<PersonEntity>, rec: List<RecurringEntity>, tx: List<TxEntity>,
         goals: List<GoalEntity>, goalTopUps: Map<String, Long>,
         loans: List<LoanEntity> = emptyList(), loanPayoffs: Map<String, Long> = emptyMap(),
+        accounts: List<AccountEntity> = emptyList(),
     ) {
+        insertAccounts(accounts)
         insertCategories(cats); insertPersons(persons); insertRecurring(rec); insertGoals(goals); insertLoans(loans); insertTx(tx)
         goalTopUps.forEach { (id, delta) -> addGoalSaved(id, delta) }
         loanPayoffs.forEach { (id, princ) -> addLoanBalance(id, -princ) }

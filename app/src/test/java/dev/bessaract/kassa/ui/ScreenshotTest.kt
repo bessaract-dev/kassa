@@ -4,7 +4,10 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import dev.bessaract.kassa.core.calc.accountMoves
 import dev.bessaract.kassa.core.calc.budget
+import dev.bessaract.kassa.core.calc.toMoves
+import dev.bessaract.kassa.core.model.Account
 import dev.bessaract.kassa.core.calc.spending
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Defaults
@@ -72,8 +75,10 @@ class ScreenshotTest {
         Loan("mom", "Долг маме", 30_000_00, 21_000_00, 0, 0.0, 1),
     )
 
-    private fun state(withTx: Boolean, withPlan: Boolean = false, overspend: Boolean = false): SpendingState {
-        val list = if (!withTx) emptyList() else listOfNotNull(
+    private val accounts = listOf(Account("card", "Карта Тинькофф", "RUB", 80_000_00), Account("cash", "Наличные", "RUB", 5_000_00))
+
+    private fun state(withTx: Boolean, withPlan: Boolean = false, overspend: Boolean = false, withAcc: Boolean = false): SpendingState {
+        val base = if (!withTx) emptyList() else listOfNotNull(
             tx("a", today, 12, 40, 54000, "Продукты"),
             tx("b", today, 9, 15, 22000, "Кафе и рестораны", note = "кофе"),
             if (overspend) tx("big", today, 13, 0, 900000, "Одежда", note = "куртка") else null,
@@ -90,6 +95,10 @@ class ScreenshotTest {
             Tx("l5", today.minusDays(4).atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), TxType.EXP, 300_000, "RUB", 300_000,
                 SystemCategories.LOAN, "", "", "Я", today.minusDays(4).toString(), "Долг маме", TxRef(RefKind.LOAN, "mom", 300_000)),
         )
+        // со счетами: траты с карты, одна — наличными, и перевод с карты на наличные
+        val list = if (!withAcc) base else base.map { if (it.id == "d") it.copy(acc = "cash") else it.copy(acc = "card") } +
+            Tx("tr1", today.atTime(8, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), TxType.TR, 300_000, "RUB", 300_000,
+                "", "card", "cash", "", today.toString(), "на неделю")
         val rec = if (withPlan) plan else emptyList()
         return SpendingState(
             today = today,
@@ -101,6 +110,8 @@ class ScreenshotTest {
             rec = rec,
             goals = goals(withPlan),
             loans = loans(withPlan),
+            accounts = if (withAcc) accounts else emptyList(),
+            accMoves = accountMoves(list.toMoves()),
             monthTx = list,
             budget = budget(rec, loans(withPlan), goals(withPlan), list, today),
         )
@@ -147,5 +158,11 @@ class ScreenshotTest {
     @Test fun sheetLoanEdit() = shot("sheet-loan-edit", state(true, withPlan = true), Tab.EXP, LOAN_PREFIX + "car")
     @Test fun sheetLoanPay() = shot("sheet-loan-pay", state(true, withPlan = true), Tab.EXP, PAY_PREFIX + "car")
     @Test fun sheetLoanTx() = shot("sheet-loan-tx", state(true, withPlan = true), Tab.HIST, "l5")
+    @Test fun financeAcc() = shot("finance-acc", state(true, withPlan = true, withAcc = true), Tab.PLAN)
+    @Test fun historyAcc() = shot("history-acc", state(true, withPlan = true, withAcc = true), Tab.HIST)
+    @Test fun sheetNewAcc() = shot("sheet-new-acc", state(true, withPlan = true, withAcc = true), sheet = NEW_TX)
+    @Test fun sheetTrEdit() = shot("sheet-tr-edit", state(true, withPlan = true, withAcc = true), Tab.HIST, "tr1")
+    @Test fun sheetAccNew() = shot("sheet-acc-new", state(true, withPlan = true, withAcc = true), Tab.PLAN, NEW_ACC)
+    @Test fun sheetAccEdit() = shot("sheet-acc-edit", state(true, withPlan = true, withAcc = true), Tab.PLAN, ACC_PREFIX + "cash")
     @Test fun sheetPlanTx() = shot("sheet-plan-tx", state(true, withPlan = true), Tab.HIST, "p3")
 }

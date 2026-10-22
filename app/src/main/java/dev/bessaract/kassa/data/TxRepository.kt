@@ -6,6 +6,11 @@ import dev.bessaract.kassa.core.backup.mergePlan
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
 import dev.bessaract.kassa.core.model.Goal
+import dev.bessaract.kassa.core.model.Account
+import dev.bessaract.kassa.core.model.TxType
+import dev.bessaract.kassa.core.calc.AccMove
+import dev.bessaract.kassa.core.calc.accountInit
+import dev.bessaract.kassa.core.calc.accountMoves
 import dev.bessaract.kassa.core.model.Loan
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.findCategory
@@ -27,6 +32,26 @@ class TxRepository(private val dao: KassaDao) {
     val recurring: Flow<List<Recurring>> = dao.recurring().map { list -> list.map { it.toModel() } }
     val goals: Flow<List<Goal>> = dao.goals().map { list -> list.map { it.toModel() } }
     val loans: Flow<List<Loan>> = dao.loans().map { list -> list.map { it.toModel() } }
+    val accounts: Flow<List<Account>> = dao.accounts().map { list -> list.map { it.toModel() } }
+    /** Движение денег по каждому счёту за всё время (id счёта → сумма). */
+    val accountMoves: Flow<Map<String, Long>> = dao.accMoves().map { rows -> accountMoves(rows.map { it.toMove() }) }
+
+    private fun dev.bessaract.kassa.data.db.AccMoveRow.toMove() =
+        AccMove(TxType.entries.firstOrNull { it.code == t } ?: TxType.EXP, acc, to, rub)
+
+    /**
+     * Счёт: в форме вводят, сколько на нём сейчас; храним остаток на старте (init), как в kassa.html.
+     * balance = null — баланс не меняли, init остаётся прежним. Движение считаем в базе в момент сохранения.
+     */
+    suspend fun saveAccount(id: String, name: String, balance: Long?, oldInit: Long?) {
+        val moves = accountMoves(dao.accMovesNow().map { it.toMove() })
+        val init = if (balance == null) oldInit ?: 0L else accountInit(id, balance, moves)
+        val pos = dao.accountPosition(id) ?: (dao.maxAccountPosition() + 1)
+        dao.upsertAccount(Account(id, name, dev.bessaract.kassa.core.model.BASE_CURRENCY, init).toEntity(pos))
+    }
+
+    /** Операции остаются в истории, у них будет «счёт удалён». */
+    suspend fun deleteAccount(id: String) = dao.deleteAccount(id)
 
     /** month = 'ГГГГ-ММ'. */
     fun monthTx(month: String): Flow<List<Tx>> = dao.monthTx(month).map { list -> list.map { it.toModel() } }
@@ -109,7 +134,8 @@ class TxRepository(private val dao: KassaDao) {
         val goals = dao.allGoals().map { it.toModel() }
         val loans = dao.allLoans().map { it.toModel() }
         val loanTx = dao.loanTx().mapNotNull { t -> t.refId?.let { Triple(t.id, it, t.refPrinc ?: 0L) } }
-        return withContext(Dispatchers.Default) { mergePlan(data, cats, persons, rec, txIds, goals, loans, loanTx) }
+        val accounts = dao.allAccounts().map { it.toModel() }
+        return withContext(Dispatchers.Default) { mergePlan(data, cats, persons, rec, txIds, goals, loans, loanTx, accounts) }
     }
 
     /** Добавить недостающее из копии — в конец списков. */
@@ -119,6 +145,7 @@ class TxRepository(private val dao: KassaDao) {
         val recPos = dao.maxRecurringPosition() + 1
         val goalPos = dao.maxGoalPosition() + 1
         val loanPos = dao.maxLoanPosition() + 1
+        val accPos = dao.maxAccountPosition() + 1
         dao.insertBackup(
             cats = p.cats.mapIndexed { i, c -> c.toEntity(catPos + i) },
             persons = p.persons.mapIndexed { i, n -> PersonEntity(name = n, position = personPos + i) },
@@ -128,6 +155,7 @@ class TxRepository(private val dao: KassaDao) {
             goalTopUps = p.goalTopUps,
             loans = p.loans.mapIndexed { i, l -> l.toEntity(loanPos + i) },
             loanPayoffs = p.loanPayoffs,
+            accounts = p.accounts.mapIndexed { i, a -> a.toEntity(accPos + i) },
         )
     }
 }

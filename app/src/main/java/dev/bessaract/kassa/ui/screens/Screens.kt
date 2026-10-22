@@ -17,6 +17,9 @@ import dev.bessaract.kassa.core.calc.goalPlan
 import dev.bessaract.kassa.core.calc.loanForecast
 import dev.bessaract.kassa.core.calc.loanPlan
 import dev.bessaract.kassa.core.model.Loan
+import dev.bessaract.kassa.core.model.Account
+import dev.bessaract.kassa.core.calc.accountBalance
+import dev.bessaract.kassa.core.calc.accountMonth
 import dev.bessaract.kassa.ui.loanForecastText
 import dev.bessaract.kassa.ui.rateText
 import dev.bessaract.kassa.core.calc.recPayment
@@ -80,11 +83,14 @@ import java.time.format.DateTimeFormatter
 /** Действия со строкой плана: открыть на правку и «Оплатил» / «Получил». */
 class PlanActions(val onEdit: (Recurring) -> Unit, val onPost: (Recurring) -> Unit)
 
+/** Действия со счетами во вкладке «Финансы». */
+class AccountActions(val onEdit: (Account) -> Unit, val onNew: () -> Unit)
+
 /** Действия с кредитами и долгами. */
 class LoanActions(val onEdit: (Loan) -> Unit, val onPay: (Loan) -> Unit, val onNew: () -> Unit)
 
 /**
- * «Сегодня». Пока доходов нет — «Потрачено сегодня» и подсказка открыть План.
+ * «Сегодня». Пока доходов нет — «Потрачено сегодня» и подсказка открыть «Финансы».
  * Когда есть — «Осталось на сегодня» (красное при перерасходе), «Свободно до конца месяца»
  * и строки плана, которые ещё ждут проведения. Формулы — budget() из kassa.html.
  */
@@ -113,14 +119,14 @@ fun TodayScreen(
         Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(3), onClick = onOpenPlan) {
             PanelLabel("Лимит на день", "限额", KassaColors.Ink)
             Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("计划", style = KassaType.cjk(22).copy(color = KassaColors.Ink), modifier = Modifier.padding(end = 12.dp))
+                Text("财务", style = KassaType.cjk(22).copy(color = KassaColors.Ink), modifier = Modifier.padding(end = 12.dp))
                 Text(
-                    "Добавь доходы и обязательные платежи во вкладке «План» — тогда здесь будет видно, сколько можно тратить в день.",
+                    "Добавь доходы и обязательные платежи во вкладке «Финансы» — тогда здесь будет видно, сколько можно тратить в день.",
                     style = KassaType.Body.copy(color = KassaColors.Ink),
                 )
             }
             Spacer(Modifier.height(14.dp))
-            PrimaryButton("Открыть план", onClick = onOpenPlan)
+            PrimaryButton("Открыть финансы", onClick = onOpenPlan)
             Spacer(Modifier.height(6.dp))
         }
     } else {
@@ -230,18 +236,19 @@ fun HistoryScreen(s: SpendingState, onEdit: (Tx) -> Unit) {
     }
 }
 
-/** Что показывать в «Плане»: доходы, расходы или всё вместе по числам. */
+/** Что показывать в «Финансах»: доходы, расходы или всё вместе по числам. */
 enum class PlanFilter(val label: String) { INC("Доходы"), EXP("Расходы"), ALL("Все") }
 
-/** Действия с целями в «Плане». */
+/** Действия с целями в «Финансах». */
 class GoalActions(val onEdit: (Goal) -> Unit, val onTop: (Goal) -> Unit, val onNew: () -> Unit)
 
 /**
- * «План»: плашка «Остаток на месяц», переключатель Доходы / Расходы / Все и цели накоплений.
+ * «Финансы» (бывший «План»): плашка «Остаток на месяц», счета, переключатель Доходы / Расходы / Все и цели накоплений.
  * «Оплатил» / «Получил» записывает операцию на сегодня со ссылкой на строку плана, «Отложить» — взнос в цель.
  */
 @Composable
-fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onOpenExpenses: () -> Unit, onAddIncome: () -> Unit) {
+fun PlanScreen(
+    s: SpendingState, plan: PlanActions, goals: GoalActions, accounts: AccountActions, onOpenExpenses: () -> Unit, onAddIncome: () -> Unit) {
     val b = s.budget
     val inc = s.rec.filter { it.type == CatType.INC }.byDay()
     val exp = s.rec.filter { it.type == CatType.EXP }.byDay()
@@ -268,8 +275,17 @@ fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onOpenEx
             if (b.goalsReserve > 0) SplitRow("На цели", "−" + formatRub(b.goalsReserve, symbol = false))
         }
     }
-    Segmented(PlanFilter.entries.map { it to it.label }, filter, Modifier.reveal(3)) { filter = it }
-    var i = 4
+    var i = 3
+    // счета: баланс каждого и всего; без счетов — только приглашение добавить
+    ListHeader("账户", "Счета", if (s.accounts.isEmpty()) "" else "всего " + formatRub(s.accounts.sumOf { accountBalance(it, s.accMoves) }, symbol = false), Modifier.reveal(i++))
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        s.accounts.forEach { a -> key(a.id) { AccountRow(a, s, Modifier.reveal(i++), accounts) } }
+        AddRow(
+            if (s.accounts.isEmpty()) "Добавить счёт (карта, наличные…) — необязательно" else "Добавить счёт",
+            Modifier.reveal(i++), onClick = accounts.onNew,
+        )
+    }
+    Segmented(PlanFilter.entries.map { it to it.label }, filter, Modifier.reveal(i++)) { filter = it }
     val addInc = "Добавить доход (зарплата, аванс…)"
     when (filter) {
         PlanFilter.INC -> ListHeader("收入", "Постоянные доходы", "+" + formatRub(b.planInc, symbol = false), Modifier.reveal(i++))
@@ -488,13 +504,46 @@ private fun LoanRow(l: Loan, s: SpendingState, modifier: Modifier, loans: LoanAc
     }
 }
 
+/** Строка счёта: баланс (красный, если ушёл в минус) и сколько пришло и ушло за месяц. */
+@Composable
+private fun AccountRow(a: Account, s: SpendingState, modifier: Modifier, accounts: AccountActions) {
+    val bal = accountBalance(a, s.accMoves)
+    val m = accountMonth(a.id, s.monthTx)
+    OpRow(
+        icon = "账",
+        title = a.name,
+        meta = if (m.inflow == 0L && m.outflow == 0L) "в этом месяце без операций"
+        else "за месяц +${formatRub(m.inflow, symbol = false)} / −${formatRub(m.outflow, symbol = false)}",
+        amount = formatRub(bal, symbol = false),
+        amountColor = if (bal < 0) KassaColors.Bad else null,
+        modifier = modifier,
+        onClick = { accounts.onEdit(a) },
+    )
+}
+
 private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+
+/** Название счёта для истории; счёт могли удалить — операция остаётся. */
+private fun accName(s: SpendingState, id: String) = s.accounts.find { it.id == id }?.name ?: "счёт удалён"
 
 @Composable
 private fun TxRow(t: Tx, s: SpendingState, modifier: Modifier, onEdit: (Tx) -> Unit) {
     val cat = s.allCats[t.cat]
     val inc = t.t == TxType.INC
     val time = Instant.ofEpochMilli(t.ts).atZone(ZoneId.systemDefault()).toLocalTime().format(timeFmt)
+    if (t.t == TxType.TR) {
+        // перевод между счетами: не трата и не доход — сумма серая, без знака
+        OpRow(
+            icon = "转",
+            title = "Перевод",
+            meta = listOf(accName(s, t.acc) + " → " + accName(s, t.to), t.note, time).filter { it.isNotBlank() }.joinToString(" · "),
+            amount = formatRub(t.rub, symbol = false),
+            amountColor = KassaColors.Grey,
+            modifier = modifier,
+            onClick = { onEdit(t) },
+        )
+        return
+    }
     // Операция по плану называется как строка плана (note), а не как категория.
     val title = if (t.ref != null && t.note.isNotBlank()) t.note else cat?.name ?: "Без категории"
     val mark = when {
@@ -504,7 +553,8 @@ private fun TxRow(t: Tx, s: SpendingState, modifier: Modifier, onEdit: (Tx) -> U
         inc -> "получено по плану"
         else -> "по плану"
     }
-    val meta = listOf(if (inc) "" else t.who, mark, if (t.ref != null) "" else t.note, time).filter { it.isNotBlank() }.joinToString(" · ")
+    val account = if (t.acc.isNotEmpty() && s.accounts.isNotEmpty()) accName(s, t.acc) else ""
+    val meta = listOf(if (inc) "" else t.who, mark, account, if (t.ref != null) "" else t.note, time).filter { it.isNotBlank() }.joinToString(" · ")
     OpRow(
         icon = catIcon(cat),
         title = title,

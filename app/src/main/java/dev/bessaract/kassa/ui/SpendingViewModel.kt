@@ -16,6 +16,7 @@ import dev.bessaract.kassa.core.calc.budget
 import dev.bessaract.kassa.core.calc.monthKey
 import dev.bessaract.kassa.core.calc.recPayment
 import dev.bessaract.kassa.core.calc.spending
+import dev.bessaract.kassa.core.model.Account
 import dev.bessaract.kassa.core.model.BASE_CURRENCY
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
@@ -67,6 +68,9 @@ data class SpendingState(
     val goals: List<Goal> = emptyList(),
     /** Кредиты и долги людям (долг без процентов — кредит со ставкой 0). */
     val loans: List<Loan> = emptyList(),
+    /** Счета (только рубли) и движение денег по ним за всё время: баланс = init + moves[id]. */
+    val accounts: List<Account> = emptyList(),
+    val accMoves: Map<String, Long> = emptyMap(),
     /** Операции текущего месяца (для статусов плана и поиска операции при правке). */
     val monthTx: List<Tx> = emptyList(),
     val budget: Budget,
@@ -74,12 +78,15 @@ data class SpendingState(
     val txTotal: Int = 0,
 ) {
     fun cats(type: CatType) = if (type == CatType.EXP) expCats else incCats
+
+    /** Счёт по умолчанию: первый в списке; без счетов — пусто. */
+    val defaultAcc: String get() = accounts.firstOrNull()?.id.orEmpty()
 }
 
 /** Черновик операции из нижнего листа. id = null — новая. */
 data class TxDraft(
     val id: String?,
-    /** Трата или доход. */
+    /** Трата, доход или перевод между счетами. */
     val t: TxType,
     val amt: Long,
     /** id выбранной категории; пусто, если название вписано руками. */
@@ -89,7 +96,14 @@ data class TxDraft(
     val who: String,
     val d: LocalDate,
     val note: String,
+    /** Счёт; у перевода — откуда. Пусто, если счетов нет. */
+    val acc: String = "",
+    /** Перевод: на какой счёт. */
+    val to: String = "",
 )
+
+/** Черновик счёта. id = null — новый. balance = null — баланс в форме не меняли. */
+data class AccountDraft(val id: String?, val name: String, val balance: Long?)
 
 /** Состояние листа «Настройки» → резервная копия. */
 sealed interface BackupUi {
@@ -99,7 +113,7 @@ sealed interface BackupUi {
     data class Saved(val count: Int) : BackupUi
     /** Файл прочитан: что добавится. when — когда сделана копия, по-человечески. */
     data class Ready(val plan: MergePlan, val total: Int, val whenText: String) : BackupUi
-    data class Added(val tx: Int, val rec: Int, val goals: Int = 0, val loans: Int = 0) : BackupUi
+    data class Added(val tx: Int, val rec: Int, val goals: Int = 0, val loans: Int = 0, val accounts: Int = 0) : BackupUi
     data class Error(val message: String) : BackupUi
 }
 
@@ -150,8 +164,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         repo.categories,
         repo.persons,
         combine(repo.recurring, repo.goals, repo.loans, ::Triple),
-        repo.txCount,
-    ) { (d, tx), cats, persons, (rec, goals, loans), total ->
+        combine(repo.txCount, repo.accounts, repo.accountMoves, ::Triple),
+    ) { (d, tx), cats, persons, (rec, goals, loans), (total, accounts, moves) ->
         SpendingState(
             today = d,
             spending = spending(tx, d),
@@ -162,6 +176,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             rec = rec,
             goals = goals,
             loans = loans,
+            accounts = accounts,
+            accMoves = moves,
             monthTx = tx,
             budget = budget(rec, loans, goals, tx, d),
             txTotal = total,
@@ -172,7 +188,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun save(draft: TxDraft, original: Tx?) {
         viewModelScope.launch {
             val type = if (draft.t == TxType.INC) CatType.INC else CatType.EXP
-            val cat = if (draft.newCat.isBlank()) draft.cat
+            val cat = if (draft.t == TxType.TR) "" else if (draft.newCat.isBlank()) draft.cat
             else repo.categoryId(draft.newCat, type, state.value?.allCats?.values?.toList().orEmpty())
             val tx = Tx(
                 id = original?.id ?: newId(),
@@ -182,8 +198,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
                 cur = BASE_CURRENCY,
                 rub = draft.amt,
                 cat = cat,
-                acc = original?.acc.orEmpty(),
-                to = "",
+                acc = draft.acc,
+                to = if (draft.t == TxType.TR) draft.to else "",
                 // «на кого» — только у трат, как в kassa.html
                 who = if (draft.t == TxType.EXP) draft.who else "",
                 d = draft.d.toString(),
@@ -215,7 +231,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             repo.save(
                 Tx(
                     id = newId(), ts = System.currentTimeMillis(), t = if (inc) TxType.INC else TxType.EXP,
-                    amt = r.amt, cur = BASE_CURRENCY, rub = r.amt, cat = r.cat, acc = r.acc, to = "",
+                    amt = r.amt, cur = BASE_CURRENCY, rub = r.amt, cat = r.cat, acc = r.acc.ifEmpty { s.defaultAcc }, to = "",
                     who = if (inc) "" else s.persons.firstOrNull().orEmpty(),
                     d = now.toString(), note = r.name, ref = TxRef(RefKind.REC, r.id),
                 ),
@@ -290,7 +306,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _backup.value = try {
                 repo.applyMerge(ready.plan)
-                BackupUi.Added(ready.plan.tx.size, ready.plan.rec.size, ready.plan.goals.size, ready.plan.loans.size)
+                BackupUi.Added(ready.plan.tx.size, ready.plan.rec.size, ready.plan.goals.size, ready.plan.loans.size, ready.plan.accounts.size)
             } catch (e: Exception) {
                 BackupUi.Error("Не удалось добавить данные — ничего не изменилось.")
             }
@@ -339,6 +355,19 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.deleteGoal(id) }
     }
 
+    fun saveAccount(d: AccountDraft) {
+        viewModelScope.launch {
+            val old = state.value?.accounts?.find { it.id == d.id }
+            // счёт удалили, пока была открыта форма — не воскрешаем
+            if (d.id != null && old == null) return@launch
+            repo.saveAccount(d.id ?: newId(), d.name.trim(), d.balance, old?.init)
+        }
+    }
+
+    fun deleteAccount(id: String) {
+        viewModelScope.launch { repo.deleteAccount(id) }
+    }
+
     fun saveLoan(d: LoanDraft) {
         viewModelScope.launch {
             val old = state.value?.loans?.find { it.id == d.id }
@@ -363,7 +392,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             repo.payLoan(
                 Tx(
                     id = newId(), ts = System.currentTimeMillis(), t = TxType.EXP, amt = amt, cur = BASE_CURRENCY, rub = amt,
-                    cat = SystemCategories.LOAN, acc = "", to = "", who = s.persons.firstOrNull().orEmpty(),
+                    cat = SystemCategories.LOAN, acc = s.defaultAcc, to = "", who = s.persons.firstOrNull().orEmpty(),
                     d = d.toString(), note = l.name, ref = TxRef(RefKind.LOAN, l.id, 0),
                 ),
                 l.id,
@@ -379,7 +408,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             repo.contribute(
                 Tx(
                     id = newId(), ts = System.currentTimeMillis(), t = TxType.EXP, amt = amt, cur = BASE_CURRENCY, rub = amt,
-                    cat = SystemCategories.GOAL, acc = "", to = "", who = s.persons.firstOrNull().orEmpty(),
+                    cat = SystemCategories.GOAL, acc = s.defaultAcc, to = "", who = s.persons.firstOrNull().orEmpty(),
                     d = LocalDate.now().toString(), note = g.name, ref = TxRef(RefKind.GOAL, g.id),
                 ),
                 g.id,

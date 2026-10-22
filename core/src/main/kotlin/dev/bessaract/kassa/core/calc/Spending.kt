@@ -33,8 +33,8 @@ data class DayGroup(val date: LocalDate, val total: Long, val tx: List<Tx>)
 fun spending(tx: List<Tx>, today: LocalDate): Spending {
     val month = monthKey(today)
     val td = today.toString()
-    // переводов между счетами пока нет; в списках — траты и доходы
-    val ops = tx.filter { (it.t == TxType.EXP || it.t == TxType.INC) && it.d.startsWith(month) }
+    // в списках — траты, доходы и переводы между счетами; в суммы переводы не входят
+    val ops = tx.filter { it.d.startsWith(month) }
     val exp = ops.filter { it.t == TxType.EXP }
     val todayTx = ops.filter { it.d == td }.sortedByDescending { it.ts }
     val byDay = ops.groupBy { it.d }

@@ -6,6 +6,7 @@ import dev.bessaract.kassa.core.backup.Json
 import dev.bessaract.kassa.core.backup.decodeBackup
 import dev.bessaract.kassa.core.backup.encodeBackup
 import dev.bessaract.kassa.core.backup.mergePlan
+import dev.bessaract.kassa.core.model.Account
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
 import dev.bessaract.kassa.core.model.Goal
@@ -135,5 +136,20 @@ class BackupTest {
         val l = (decodeBackup(bad) as BackupParse.Ok).data.loans[0]
         assertEquals(0.0, l.rate, 0.0)
         assertEquals(31, l.day)
+    }
+
+    @Test
+    fun accountsAndTransfersRoundTripAndMergeById() {
+        val accs = listOf(Account("a1", "Карта", "RUB", 12_345_67), Account("a2", "Наличные", "RUB", -500_00))
+        val tr = Tx("tr1", 5, TxType.TR, 3_000_00, "RUB", 3_000_00, "", "a1", "a2", "", "2026-10-21", "")
+        val d = data.copy(accounts = accs, tx = tx + tr)
+        val back = (decodeBackup(encodeBackup(d, "2026-10-22T12:00:00Z")) as BackupParse.Ok).data
+        assertEquals(accs, back.accounts)
+        assertEquals(tr, back.tx.single { it.id == "tr1" })
+        // счёт, что уже есть в телефоне, не трогаем; пустой id пропускаем
+        val withBlank = d.copy(accounts = accs + Account("", "x", "RUB", 0))
+        val plan = mergePlan(withBlank, cats, listOf("Я", "Варя"), rec, tx.map { it.id }.toSet(), accounts = listOf(accs[0]))
+        assertEquals(listOf("a2"), plan.accounts.map { it.id })
+        assertEquals(listOf("tr1"), plan.tx.map { it.id })
     }
 }

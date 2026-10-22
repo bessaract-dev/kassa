@@ -79,6 +79,14 @@ data class GoalEntity(
     @ColumnInfo(name = "by_date", defaultValue = "") val by: String = "",
 )
 
+/** Сумма операций одного вида по паре счетов (для балансов счетов). */
+data class AccMoveRow(
+    val t: String,
+    val acc: String,
+    @ColumnInfo(name = "to_acc") val to: String,
+    val rub: Long,
+)
+
 /** Операция. ref хранится тремя полями: ref_kind ('rec'|'loan'|'goal' или null), ref_id, ref_princ. */
 @Entity(
     tableName = "tx",

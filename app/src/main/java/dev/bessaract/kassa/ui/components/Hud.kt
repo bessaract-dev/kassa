@@ -443,6 +443,7 @@ fun Chip(text: String, on: Boolean, onClick: () -> Unit) {
  * Строка операции или плана (.op): иконка-иероглиф, название и подробности, сумма.
  * [positive] — доход: иконка на лайме, сумма лаймом. [meta] можно раскрасить (статус плана) через [metaColor].
  * [dimmed] — проведённая строка плана, приглушена. [trailing] — кнопка справа («Оплатил»).
+ * [amountColor] — свой цвет суммы (перевод — серый, счёт в минусе — красный).
  */
 @Composable
 fun OpRow(
@@ -454,6 +455,7 @@ fun OpRow(
     positive: Boolean = false,
     metaColor: Color = KassaColors.Grey,
     dimmed: Boolean = false,
+    amountColor: Color? = null,
     trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
@@ -474,7 +476,7 @@ fun OpRow(
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(amount, style = KassaType.RowAmount.copy(color = if (positive) KassaColors.Lime else KassaColors.Text), maxLines = 1, softWrap = false)
+            Text(amount, style = KassaType.RowAmount.copy(color = amountColor ?: if (positive) KassaColors.Lime else KassaColors.Text), maxLines = 1, softWrap = false)
             trailing?.invoke()
         }
     }

@@ -60,8 +60,9 @@ import java.time.LocalDate
 
 /**
  * Содержимое нижнего листа «Новая трата / доход» и правки операции.
- * original = null — новая операция: сразу фокус на сумме, чтобы открылась клавиатура; сверху переключатель Трата / Доход.
- * Операцию по плану (ref) можно только удалить — как в kassa.html: отметка в Плане снимется.
+ * original = null — новая операция: сразу фокус на сумме, чтобы открылась клавиатура; сверху переключатель Трата / Доход
+ * (и «Перевод», когда счетов два и больше). Операцию по плану (ref) можно только удалить — как в kassa.html.
+ * Счёт новой операции — первый в списке; у перевода «на счёт» — второй.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -82,6 +83,9 @@ fun TxSheetContent(
     var who by rememberSaveable(key) { mutableStateOf(original?.who ?: s.persons.firstOrNull().orEmpty()) }
     var day by rememberSaveable(key) { mutableStateOf(original?.d ?: s.today.toString()) }
     var note by rememberSaveable(key) { mutableStateOf(original?.note.orEmpty()) }
+    var acc by rememberSaveable(key) { mutableStateOf(original?.acc ?: s.defaultAcc) }
+    var to by rememberSaveable(key) { mutableStateOf(original?.to?.takeIf { original.t == TxType.TR } ?: s.accounts.getOrNull(1)?.id.orEmpty()) }
+    val tr = type == TxType.TR
     var err by remember(key) { mutableStateOf("") }
     var confirmDelete by remember(key) { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
@@ -91,8 +95,10 @@ fun TxSheetContent(
         val amt = parseAmount(amount)
         when {
             amt <= 0 -> err = "Введи сумму больше нуля"
+            tr && (acc.isEmpty() || to.isEmpty() || acc == to) -> err = "Выбери два разных счёта"
+            tr -> onSave(TxDraft(original?.id, type, amt, "", "", "", date, note.trim(), acc, to))
             cat.isEmpty() && customCat.isBlank() -> err = "Выбери или впиши категорию"
-            else -> onSave(TxDraft(original?.id, type, amt, if (customCat.isBlank()) cat else "", customCat.trim(), who, date, note))
+            else -> onSave(TxDraft(original?.id, type, amt, if (customCat.isBlank()) cat else "", customCat.trim(), who, date, note, acc))
         }
     }
 
@@ -101,15 +107,18 @@ fun TxSheetContent(
 
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
         val title = when {
+            tr -> if (original == null) "Перевод" else "Правка перевода"
             original == null -> if (inc) "Новый доход" else "Новая трата"
             else -> if (inc) "Правка дохода" else "Правка траты"
         }
-        SheetHeader(title, if (inc) "收入" else "支出", onCancel)
+        SheetHeader(title, if (tr) "转账" else if (inc) "收入" else "支出", onCancel)
         if (original == null) {
-            Segmented(listOf(TxType.EXP to "Трата", TxType.INC to "Доход"), type, Modifier.padding(top = 12.dp)) { t ->
+            val types = listOf(TxType.EXP to "Трата", TxType.INC to "Доход") +
+                if (s.accounts.size >= 2) listOf(TxType.TR to "Перевод") else emptyList()
+            Segmented(types, type, Modifier.padding(top = 12.dp)) { t ->
                 if (t != type) {
                     type = t
-                    cat = s.cats(if (t == TxType.INC) CatType.INC else CatType.EXP).firstOrNull()?.id.orEmpty()
+                    cat = if (t == TxType.TR) "" else s.cats(if (t == TxType.INC) CatType.INC else CatType.EXP).firstOrNull()?.id.orEmpty()
                     customCat = ""; err = ""
                 }
             }
@@ -120,7 +129,7 @@ fun TxSheetContent(
                     RefKind.GOAL -> "Взнос в цель «${original?.note}». Его можно только удалить — накопленное уменьшится."
                     RefKind.LOAN -> "Платёж по «${original?.note}». Его можно только удалить — долг вернётся на " +
                         "${dev.bessaract.kassa.core.formatRub(original?.ref?.princ ?: 0L, symbol = false)}."
-                    else -> "Операция по плану: «${original?.note}». Её можно только удалить — отметка в Плане снимется."
+                    else -> "Операция по плану: «${original?.note}». Её можно только удалить — отметка «оплачено» снимется."
                 },
                 style = KassaType.Small.copy(fontSize = KassaType.Body.fontSize * 0.92f),
                 modifier = Modifier.padding(top = 12.dp),
@@ -149,6 +158,16 @@ fun TxSheetContent(
         if (err.isNotEmpty()) Text(err, style = KassaType.Small.copy(color = KassaColors.Bad), modifier = Modifier.padding(bottom = 8.dp))
 
         if (!locked) {
+        if (tr) {
+            SheetLabel("Со счёта")
+            AccountChips(s, acc) { acc = it; err = "" }
+            SheetLabel("На счёт")
+            AccountChips(s, to) { to = it; err = "" }
+        } else {
+        if (s.accounts.isNotEmpty()) {
+            SheetLabel("Счёт")
+            AccountChips(s, acc) { acc = it; err = "" }
+        }
         SheetLabel("Категория")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             cats.forEach { c -> Chip("${catIcon(c)} ${catShort(c)}", c.id == cat) { cat = c.id; customCat = ""; err = "" } }
@@ -173,6 +192,7 @@ fun TxSheetContent(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 s.persons.forEach { p -> Chip(p, p == who) { who = p } }
             }
+        }
         }
 
         SheetLabel("Дата")
@@ -206,6 +226,16 @@ fun TxSheetContent(
             }
             Spacer(Modifier.height(8.dp))
         }
+    }
+}
+
+/** Чипы счетов «账 Название»; счёт, которого уже нет, виден выбранным с пометкой. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AccountChips(s: SpendingState, selected: String, onPick: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        s.accounts.forEach { a -> Chip("账 ${a.name}", a.id == selected) { onPick(a.id) } }
+        if (selected.isNotEmpty() && s.accounts.none { it.id == selected }) Chip("账 счёт удалён", true) {}
     }
 }
 

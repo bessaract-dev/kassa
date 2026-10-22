@@ -47,6 +47,7 @@ fun SettingsSheetContent(
             StatRow("Новых строк плана", p.rec.size)
             StatRow("Новых целей", p.goals.size)
             StatRow("Новых кредитов и долгов", p.loans.size)
+            StatRow("Новых счетов", p.accounts.size)
             StatRow("Новых категорий", p.cats.size)
             StatRow("Уже есть, пропущу", p.skipped)
             Spacer(Modifier.height(16.dp))
@@ -62,14 +63,15 @@ fun SettingsSheetContent(
             return@Column
         }
 
-        Info("Один файл со всеми данными: план, цели, долги, категории, операции. Лежит там, куда сохранишь (Загрузки, Диск). Приложение никуда его не отправляет.")
+        Info("Один файл со всеми данными: план, цели, долги, счета, категории, операции. Лежит там, куда сохранишь (Загрузки, Диск). Приложение никуда его не отправляет.")
         StatRow("Операций", s.txTotal)
         StatRow("Строк плана", s.rec.size)
         StatRow("Целей", s.goals.size)
         StatRow("Кредитов и долгов", s.loans.size)
+        StatRow("Счетов", s.accounts.size)
         when (backup) {
             is BackupUi.Saved -> Note("Копия сохранена: операций — ${backup.count}.", KassaColors.Lime)
-            is BackupUi.Added -> Note("Добавлено: операций — ${backup.tx}, строк плана — ${backup.rec}, целей — ${backup.goals}, долгов — ${backup.loans}.", KassaColors.Lime)
+            is BackupUi.Added -> Note("Добавлено: операций — ${backup.tx}, строк плана — ${backup.rec}, целей — ${backup.goals}, долгов — ${backup.loans}, счетов — ${backup.accounts}.", KassaColors.Lime)
             is BackupUi.Error -> Note(backup.message, KassaColors.Bad)
             BackupUi.Busy -> Note("Секунду…", KassaColors.Grey)
             else -> {}

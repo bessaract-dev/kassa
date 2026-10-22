@@ -15,7 +15,7 @@ class SpendingTest {
     private val today = LocalDate.of(2026, 10, 21)
 
     @Test
-    fun sumsOnlyExpensesButListsIncomes() {
+    fun sumsOnlyExpensesButListsIncomesAndTransfers() {
         val list = listOf(
             tx("a", "2026-10-21", 54000, ts = 2),
             tx("b", "2026-10-21", 22000, ts = 5),
@@ -28,7 +28,8 @@ class SpendingTest {
         assertEquals(76000L, s.today)
         assertEquals(176000L, s.month)
         assertEquals(15000L, s.monthInc)
-        assertEquals(listOf("b", "a", "inc"), s.todayTx.map { it.id })
+        // переводы видны в списке, но в суммы не входят
+        assertEquals(listOf("b", "a", "inc", "tr"), s.todayTx.map { it.id })
         assertEquals(listOf("2026-10-21", "2026-10-03"), s.byDay.map { it.date.toString() })
         assertEquals(76000L, s.byDay[0].total)
     }

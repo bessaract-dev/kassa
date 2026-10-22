@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.bessaract.kassa.core.calc.daysLeft
+import dev.bessaract.kassa.core.model.Account
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Goal
 import dev.bessaract.kassa.core.model.Recurring
@@ -92,6 +93,8 @@ import dev.bessaract.kassa.core.model.Loan
 import java.time.LocalDate
 import dev.bessaract.kassa.ui.screens.PlanActions
 import dev.bessaract.kassa.ui.screens.PlanScreen
+import dev.bessaract.kassa.ui.screens.AccountActions
+import dev.bessaract.kassa.ui.screens.AccountSheetContent
 import dev.bessaract.kassa.ui.screens.RecSheetContent
 import dev.bessaract.kassa.ui.screens.SettingsSheetContent
 import dev.bessaract.kassa.ui.screens.TodayScreen
@@ -108,7 +111,7 @@ import dev.bessaract.kassa.ui.theme.Tektur
 enum class Tab(val label: String, val cjk: String) {
     HOME("Сегодня", "今天"),
     HIST("История", "记录"),
-    PLAN("План", "计划"),
+    PLAN("Финансы", "财务"),
     EXP("Расходы", "支出"),
 }
 
@@ -128,6 +131,8 @@ const val TOP_PREFIX = "top:"
 const val NEW_LOAN = "loan+"
 const val LOAN_PREFIX = "loan:"
 const val PAY_PREFIX = "pay:"
+const val NEW_ACC = "acc+"
+const val ACC_PREFIX = "acc:"
 
 /** Обработчики действий интерфейса — всё, что меняет данные. */
 class KassaActions(
@@ -142,6 +147,8 @@ class KassaActions(
     val onSaveLoan: (LoanDraft) -> Unit = {},
     val onDeleteLoan: (String) -> Unit = {},
     val onPayLoan: (String, Long, LocalDate) -> Unit = { _, _, _ -> },
+    val onSaveAccount: (AccountDraft) -> Unit = {},
+    val onDeleteAccount: (String) -> Unit = {},
     val backupFileName: () -> String = { "kassa.json" },
     val onExport: (Uri) -> Unit = {},
     val onReadBackup: (Uri) -> Unit = {},
@@ -157,7 +164,7 @@ fun KassaRoot(vm: SpendingViewModel = viewModel()) {
         KassaActions(
             vm::save, vm::delete, vm::postRec, vm::saveRec, vm::deleteRec,
             vm::saveGoal, vm::deleteGoal, vm::contribute,
-            vm::saveLoan, vm::deleteLoan, vm::payLoan,
+            vm::saveLoan, vm::deleteLoan, vm::payLoan, vm::saveAccount, vm::deleteAccount,
             vm::backupFileName, vm::exportTo, vm::readBackup, vm::applyBackup, vm::resetBackup,
         )
     }
@@ -173,6 +180,7 @@ private sealed interface SheetTarget {
     data class TopGoal(val goal: Goal) : SheetTarget
     data class LoanForm(val loan: Loan?) : SheetTarget
     data class PayLoan(val loan: Loan) : SheetTarget
+    data class AccountForm(val account: Account?) : SheetTarget
 }
 
 private fun resolveSheet(sheet: String?, s: SpendingState?): SheetTarget? {
@@ -188,6 +196,8 @@ private fun resolveSheet(sheet: String?, s: SpendingState?): SheetTarget? {
         sheet == NEW_LOAN -> SheetTarget.LoanForm(null)
         sheet.startsWith(LOAN_PREFIX) -> s.loans.find { it.id == sheet.removePrefix(LOAN_PREFIX) }?.let { SheetTarget.LoanForm(it) }
         sheet.startsWith(PAY_PREFIX) -> s.loans.find { it.id == sheet.removePrefix(PAY_PREFIX) }?.let { SheetTarget.PayLoan(it) }
+        sheet == NEW_ACC -> SheetTarget.AccountForm(null)
+        sheet.startsWith(ACC_PREFIX) -> s.accounts.find { it.id == sheet.removePrefix(ACC_PREFIX) }?.let { SheetTarget.AccountForm(it) }
         sheet.startsWith(REC_PREFIX) -> s.rec.find { it.id == sheet.removePrefix(REC_PREFIX) }?.let { SheetTarget.RecForm(it, it.type) }
         else -> s.monthTx.find { it.id == sheet }?.let { SheetTarget.TxForm(it) }
     }
@@ -225,6 +235,7 @@ fun KassaContent(
 
     val plan = remember(actions) { PlanActions(onEdit = { sheet = REC_PREFIX + it.id }, onPost = actions.onPostRec) }
     val loans = remember { LoanActions(onEdit = { sheet = LOAN_PREFIX + it.id }, onPay = { sheet = PAY_PREFIX + it.id }, onNew = { sheet = NEW_LOAN }) }
+    val accounts = remember { AccountActions(onEdit = { sheet = ACC_PREFIX + it.id }, onNew = { sheet = NEW_ACC }) }
     val goals = remember { GoalActions(onEdit = { sheet = GOAL_PREFIX + it.id }, onTop = { sheet = TOP_PREFIX + it.id }, onNew = { sheet = NEW_GOAL }) }
 
     val motion = rememberMotionEnabled()
@@ -255,7 +266,7 @@ fun KassaContent(
                         when (tab) {
                             Tab.HOME -> TodayScreen(s, onEdit = { sheet = it.id }, plan = plan, onOpenPlan = { tab = Tab.PLAN }, onOpenHistory = { tab = Tab.HIST }, loans = loans)
                             Tab.HIST -> HistoryScreen(s) { sheet = it.id }
-                            Tab.PLAN -> PlanScreen(s, plan, goals, onOpenExpenses = { tab = Tab.EXP }, onAddIncome = { sheet = NEW_REC_INC })
+                            Tab.PLAN -> PlanScreen(s, plan, goals, accounts, onOpenExpenses = { tab = Tab.EXP }, onAddIncome = { sheet = NEW_REC_INC })
                             Tab.EXP -> ExpensesScreen(s, plan, loans) { sheet = NEW_REC_EXP }
                         }
                     }
@@ -357,6 +368,13 @@ fun KassaContent(
                                 s = s,
                                 loan = opened.loan,
                                 onSave = { amt, d -> submit { actions.onPayLoan(opened.loan.id, amt, d) } },
+                                onCancel = { closeSheet() },
+                            )
+                            is SheetTarget.AccountForm -> AccountSheetContent(
+                                s = s,
+                                original = opened.account,
+                                onSave = { d -> submit { actions.onSaveAccount(d) } },
+                                onDelete = { id -> submit { actions.onDeleteAccount(id) } },
                                 onCancel = { closeSheet() },
                             )
                             null -> {}

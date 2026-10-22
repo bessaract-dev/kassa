@@ -171,8 +171,9 @@ data class MergePlan(
     val loans: List<Loan> = emptyList(),
     /** Сколько вычесть из остатка кредитов, что уже есть в телефоне: погашенное новыми платежами из копии. */
     val loanPayoffs: Map<String, Long> = emptyMap(),
+    val accounts: List<Account> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = cats.isEmpty() && persons.isEmpty() && rec.isEmpty() && tx.isEmpty() && goals.isEmpty() && loans.isEmpty()
+    val isEmpty: Boolean get() = cats.isEmpty() && persons.isEmpty() && rec.isEmpty() && tx.isEmpty() && goals.isEmpty() && loans.isEmpty() && accounts.isEmpty()
 }
 
 /**
@@ -190,6 +191,7 @@ fun mergePlan(
     loans: List<Loan> = emptyList(),
     /** Погашенное платежами в телефоне по кредиту (id операции → id кредита, princ): для кредитов, которых в телефоне уже нет. */
     phoneLoanPayments: List<Triple<String, String, Long>> = emptyList(),
+    accounts: List<Account> = emptyList(),
 ): MergePlan {
     val catMap = HashMap<String, String>()
     val newCats = ArrayList<Category>()
@@ -218,6 +220,8 @@ fun mergePlan(
         goalTopUps = newTx.filter { it.ref?.kind == RefKind.GOAL && it.ref.id in goalIds }
             .groupBy { it.ref!!.id }.mapValues { (_, l) -> l.sumOf { it.rub } },
         loans = newLoans,
+        // счёт из копии приходит со своим остатком на старте; баланс сложится из него и операций
+        accounts = run { val ids = accounts.mapTo(HashSet()) { it.id }; data.accounts.filter { it.id.isNotBlank() && it.id !in ids }.distinctBy { it.id } },
         // так же с кредитами: у кредита из копии остаток уже уменьшен её платежами
         loanPayoffs = run {
             val fileTx = data.tx.mapTo(HashSet()) { it.id }
