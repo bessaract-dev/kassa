@@ -77,11 +77,11 @@ import dev.bessaract.kassa.ui.components.rememberMotionEnabled
 import dev.bessaract.kassa.ui.components.gridBackground
 import dev.bessaract.kassa.ui.components.press
 import dev.bessaract.kassa.ui.components.reveal
+import dev.bessaract.kassa.ui.screens.ExpensesScreen
 import dev.bessaract.kassa.ui.screens.GoalActions
 import dev.bessaract.kassa.ui.screens.GoalSheetContent
 import dev.bessaract.kassa.ui.screens.HistoryScreen
 import dev.bessaract.kassa.ui.screens.TopGoalSheetContent
-import dev.bessaract.kassa.ui.screens.PlaceholderScreen
 import dev.bessaract.kassa.ui.screens.PlanActions
 import dev.bessaract.kassa.ui.screens.PlanScreen
 import dev.bessaract.kassa.ui.screens.RecSheetContent
@@ -101,7 +101,7 @@ enum class Tab(val label: String, val cjk: String) {
     HOME("Сегодня", "今日"),
     HIST("История", "履歴"),
     PLAN("План", "計画"),
-    DEBT("Долги", "負債"),
+    EXP("Расходы", "支出"),
 }
 
 /**
@@ -230,8 +230,8 @@ fun KassaContent(
                         when (tab) {
                             Tab.HOME -> TodayScreen(s, onEdit = { sheet = it.id }, plan = plan, onOpenPlan = { tab = Tab.PLAN })
                             Tab.HIST -> HistoryScreen(s) { sheet = it.id }
-                            Tab.PLAN -> PlanScreen(s, plan, goals) { type -> sheet = if (type == CatType.INC) NEW_REC_INC else NEW_REC_EXP }
-                            Tab.DEBT -> PlaceholderScreen("Кредиты и долги с графиком платежей и процентами — версия 0.6. Цели накоплений — во вкладке «План».")
+                            Tab.PLAN -> PlanScreen(s, plan, goals, onOpenExpenses = { tab = Tab.EXP }, onAddIncome = { sheet = NEW_REC_INC })
+                            Tab.EXP -> ExpensesScreen(s, plan) { sheet = NEW_REC_EXP }
                         }
                     }
                 }
@@ -404,7 +404,7 @@ private fun BottomNav(current: Tab, onSelect: (Tab) -> Unit, onAdd: () -> Unit) 
                 }
             }
             NavItem(Tab.PLAN, current, onSelect)
-            NavItem(Tab.DEBT, current, onSelect)
+            NavItem(Tab.EXP, current, onSelect)
         }
     }
 }

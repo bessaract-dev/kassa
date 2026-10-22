@@ -343,9 +343,9 @@ fun MiniButton(text: String, onClick: () -> Unit) {
     )
 }
 
-/** Строка «+ Добавить …» с пунктирной рамкой (.add-row). */
+/** Строка «+ Добавить …» с пунктирной рамкой (.add-row). [mark] — значок слева: «+» или «→» для перехода. */
 @Composable
-fun AddRow(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun AddRow(text: String, modifier: Modifier = Modifier, mark: String = "+", onClick: () -> Unit) {
     Row(
         modifier.fillMaxWidth().press(onClick = onClick).drawBehind {
             val w = 1.dp.toPx()
@@ -357,7 +357,7 @@ fun AddRow(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("+", style = KassaType.RowAmount.copy(fontSize = 18.sp, color = KassaColors.Lime))
+        Text(mark, style = KassaType.RowAmount.copy(fontSize = 18.sp, color = KassaColors.Lime))
         Text(text, style = KassaType.Small.copy(fontSize = 12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
