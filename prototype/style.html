@@ -381,7 +381,7 @@ table.motion th{color:var(--grey);font-weight:500}
         <button class="press" data-tab="home"><span class="cjk">今天</span>Сегодня</button>
         <button class="press" data-tab="hist"><span class="cjk">记录</span>История</button>
         <button class="fab press" id="fab" aria-label="Добавить">+</button>
-        <button class="press" data-tab="plan"><span class="cjk">计划</span>План</button>
+        <button class="press" data-tab="plan"><span class="cjk">财务</span>Финансы</button>
         <button class="press" data-tab="exp"><span class="cjk">支出</span>Расходы</button>
       </nav>
       <div class="scrim" id="scrim"></div>
@@ -629,6 +629,12 @@ table.motion th{color:var(--grey);font-weight:500}
     return r.concat(l).sort((a, b) => a.day - b.day);
   }
 
+  // блок «Счета» во вкладке «Финансы»: баланс каждого счёта и всего
+  function accSection() {
+    let h = opsH('账户', 'Счета', S.accounts.length ? 'всего ' + fmtN(sum(S.accounts, accBal)) : '');
+    h += S.accounts.map(a => { const v = accBal(a); return `<div class="panel dark shape-c op${rv()}" data-act="editAcc" data-id="${a.id}"><div class="ic">账</div><div><div class="n">${esc(a.name)}</div><div class="m">${accMeta(a)}</div></div><div class="a"${v < 0 ? ' style="color:var(--bad)"' : ''}>${fmtN(v)}</div></div>`; }).join('');
+    return h + `<button class="add-row press${rv()}" data-act="newAcc"><b>+</b>${S.accounts.length ? 'Добавить счёт' : 'Добавить счёт (карта, наличные…) — необязательно'}</button>`;
+  }
   // за месяц по счёту: пришло / ушло (переводы тоже)
   function accMeta(a) {
     let i = 0, o = 0;
@@ -640,7 +646,7 @@ table.motion th{color:var(--grey);font-weight:500}
   }
 
   /* ---------- экраны ---------- */
-  const TABS = { home: ['Сегодня', '今天'], hist: ['История', '记录'], plan: ['План', '计划'], exp: ['Расходы', '支出'] };
+  const TABS = { home: ['Сегодня', '今天'], hist: ['История', '记录'], plan: ['Финансы', '财务'], exp: ['Расходы', '支出'] };
   let tab = 'home';
   function head() {
     const b = budget(), d = new Date(), [t, c] = TABS[tab];
@@ -657,8 +663,8 @@ table.motion th{color:var(--grey);font-weight:500}
         <div class="big glitch" id="heroNum" data-text="${fmtN(b.spentAllToday)} ₽"><span class="num" data-val="${b.spentAllToday}">${fmtN(b.spentAllToday)}</span><small>₽</small></div>
         <div class="sub">операций сегодня: ${tTx.length}</div><div class="bar-row"><div class="hatch"></div><span class="arrows">⇲⇲⇲</span></div><span class="serial">SN 48-1508F</span></div>
         <div class="panel paper shape-b${rv()}" data-act="goPlan" style="padding-bottom:20px">${lbl('Лимит на день', '限额')}
-        <div class="hint" style="margin-top:8px"><span class="cjk" style="color:var(--ink)">计划</span><span>Добавь доходы и обязательные платежи во вкладке «План» — тогда здесь будет видно, сколько можно тратить в день.</span></div>
-        <button class="btn primary press" data-act="goPlan" style="margin-top:14px"><span>Открыть план</span><span class="arrows">⇲⇲</span></button></div>`;
+        <div class="hint" style="margin-top:8px"><span class="cjk" style="color:var(--ink)">财务</span><span>Добавь доходы и обязательные платежи во вкладке «Финансы» — тогда здесь будет видно, сколько можно тратить в день.</span></div>
+        <button class="btn primary press" data-act="goPlan" style="margin-top:14px"><span>Открыть финансы</span><span class="arrows">⇲⇲</span></button></div>`;
     } else {
       const over = b.leftToday < 0;
       h += `<div class="panel lime shape-a${over ? ' over' : ''}${rv()}" data-act="goHist" style="padding-top:24px">${lbl(over ? 'Перерасход за сегодня' : 'Осталось на сегодня', over ? '超支' : '余额')}
@@ -672,14 +678,8 @@ table.motion th{color:var(--grey);font-weight:500}
       const due = dueRows();
       if (due.length) h += opsH('待付', 'Ждут в этом месяце', String(due.length).padStart(2, '0') + ' шт') + due.map(d => d.h()).join('');
     }
-    if (S.accounts.length) {
-      h += opsH('账户', 'Счета', 'всего ' + fmtN(sum(S.accounts, accBal)));
-      h += S.accounts.map(a => { const v = accBal(a); return `<div class="panel dark shape-c op${rv()}" data-act="editAcc" data-id="${a.id}"><div class="ic">账</div><div><div class="n">${esc(a.name)}</div><div class="m">${accMeta(a)}</div></div><div class="a"${v < 0 ? ' style="color:var(--bad)"' : ''}>${fmtN(v)}</div></div>`; }).join('');
-      h += `<button class="add-row press${rv()}" data-act="newAcc"><b>+</b>Добавить счёт</button>`;
-    }
     h += opsH('记录', 'Операции сегодня', String(tTx.length).padStart(2, '0') + ' шт');
     h += tTx.length ? tTx.map(txRow).join('') : empty('空', 'Пока пусто. Нажми «+», чтобы записать трату.');
-    if (!S.accounts.length) h += `<button class="add-row press${rv()}" data-act="newAcc"><b>+</b>Добавить счёт (карта, наличные…) — необязательно</button>`;
     return h;
   }
   function vHist() {
@@ -698,7 +698,7 @@ table.motion th{color:var(--grey);font-weight:500}
     });
     return h;
   }
-  // «План»: плашка «Остаток», переключатель Доходы / Расходы / Все и цели накоплений
+  // «Финансы» (бывший «План»): плашка «Остаток», счета, переключатель Доходы / Расходы / Все и цели накоплений
   let planF = 'all';
   function goalRow(g) {
     const p = g.target ? Math.min(100, g.saved / g.target * 100) : 0, done = g.saved >= g.target;
@@ -718,6 +718,7 @@ table.motion th{color:var(--grey);font-weight:500}
       <div class="mid"><span class="num" data-val="${rest}">${fmtN(rest)}</span> ₽</div>
       <div class="sub" style="margin-top:4px">${rest < 0 ? 'не хватает: уменьши цель или сдвинь дату' : 'столько остаётся на ежедневные траты'}</div>
       <div class="split"><div><span>Доходы</span><span>+${fmtN(b.planInc)}</span></div><div><span>Обязательные платежи</span><span>−${fmtN(recExp)}</span></div>${b.goalsMonthly ? `<div><span>На цели</span><span>−${fmtN(b.goalsMonthly)}</span></div>` : ''}</div></div>`;
+    h += accSection();
     h += `<div class="seg${rv()}">${[['inc', 'Доходы'], ['exp', 'Расходы'], ['all', 'Все']].map(([k, t]) => `<button class="${planF === k ? 'on' : ''}" data-act="planF" data-v="${k}">${t}</button>`).join('')}</div>`;
     const addInc = `<button class="add-row press${rv()}" data-act="newRec" data-type="inc"><b>+</b>Добавить доход (зарплата, аванс…)</button>`;
     // обязательные платежи в «Плане» только для обзора: добавляются, правятся и оплачиваются во вкладке «Расходы»
@@ -894,7 +895,7 @@ table.motion th{color:var(--grey);font-weight:500}
       if (locked) h.push(f.ref.k === 'goal'
         ? `<p class="info">Взнос в цель «${esc(f.note)}». Его можно только удалить — накопленное уменьшится.</p>`
         : f.ref.k === 'loan' ? `<p class="info">Платёж по «${esc(f.note)}». Его можно только удалить — долг вернётся на ${fmtN(f.ref.princ || 0)}.</p>`
-        : `<p class="info">Операция по плану: «${esc(f.note)}». Её можно только удалить — отметка в Плане снимется.</p>`);
+        : `<p class="info">Операция по плану: «${esc(f.note)}». Её можно только удалить — отметка «оплачено» снимется.</p>`);
       h.push(`<input class="inp big" data-f="amt" inputmode="decimal" placeholder="0" value="${esc(f.amt)}"${locked ? ' disabled' : ''}>`);
       if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
       const accChips = (act, v) => `<div class="chips">${S.accounts.map(a => chip(a.id === v, act, a.id, `账 ${esc(a.name)}`)).join('')}</div>`;
