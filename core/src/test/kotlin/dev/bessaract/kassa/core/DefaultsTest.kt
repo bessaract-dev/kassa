@@ -29,4 +29,12 @@ class DefaultsTest {
         // 10,01 $ по 92,35 ₽ = 924,4235 ₽ → 924,42 ₽
         assertEquals(92442L, toRub(1001L, 92.35))
     }
+
+    @Test
+    fun findExpCategoryIgnoresCaseAndSpaces() {
+        val cats = Defaults.categories()
+        assertEquals("Продукты", dev.bessaract.kassa.core.model.findExpCategory(cats, "  продукты ")?.name)
+        assertEquals(null, dev.bessaract.kassa.core.model.findExpCategory(cats, "Зарплата"))
+        assertEquals(null, dev.bessaract.kassa.core.model.findExpCategory(cats, "Кэшбэк"))
+    }
 }

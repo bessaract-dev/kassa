@@ -6,19 +6,19 @@
     android:viewportHeight="108">
     <!-- Рамка со срезанными углами (как .card в kassa.html) -->
     <path
-        android:strokeColor="#FCEE0A"
+        android:strokeColor="#C8FF00"
         android:strokeWidth="3"
         android:fillColor="#00000000"
         android:pathData="M32,32 L68,32 L76,40 L76,76 L40,76 L32,68 Z" />
     <!-- Знак рубля -->
     <path
-        android:strokeColor="#FCEE0A"
+        android:strokeColor="#C8FF00"
         android:strokeWidth="4"
         android:fillColor="#00000000"
         android:strokeLineCap="square"
         android:pathData="M48,66 L48,42 L57,42 A6,6 0 0 1 57,54 L44,54 M44,60 L56,60" />
     <!-- Курсор терминала -->
     <path
-        android:fillColor="#2DE2E6"
+        android:fillColor="#EFEFEA"
         android:pathData="M62,62 L68,62 L68,68 L62,68 Z" />
 </vector>

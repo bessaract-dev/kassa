@@ -29,8 +29,8 @@ fun Recurring.toEntity(position: Int) = RecurringEntity(id, type.code, name, amt
 fun LoanEntity.toModel() = Loan(id, name, total, balance, pay, rate, day)
 fun Loan.toEntity(position: Int) = LoanEntity(id, name, total, balance, pay, rate, day, position)
 
-fun GoalEntity.toModel() = Goal(id, name, target, saved, monthly)
-fun Goal.toEntity(position: Int) = GoalEntity(id, name, target, saved, monthly, position)
+fun GoalEntity.toModel() = Goal(id, name, target, saved, monthly, by)
+fun Goal.toEntity(position: Int) = GoalEntity(id, name, target, saved, monthly, position, by)
 
 fun TxEntity.toModel() = Tx(
     id, ts, txType(t), amt, cur, rub, cat, acc, to, who, d, note,

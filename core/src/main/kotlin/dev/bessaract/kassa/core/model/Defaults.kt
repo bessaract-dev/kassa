@@ -33,3 +33,11 @@ object Defaults {
         goals = emptyList(),
     )
 }
+
+/** Категория нужного типа по названию, без учёта регистра и пробелов по краям. */
+fun findCategory(cats: List<Category>, name: String, type: CatType): Category? {
+    val n = name.trim()
+    return cats.firstOrNull { it.type == type && it.name.trim().equals(n, ignoreCase = true) }
+}
+
+fun findExpCategory(cats: List<Category>, name: String): Category? = findCategory(cats, name, CatType.EXP)
