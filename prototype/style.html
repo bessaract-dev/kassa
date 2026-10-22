@@ -155,7 +155,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .nav button.on{color:var(--lime)}
 .nav button.on::before{content:"";position:absolute;top:-1px;left:22%;right:22%;height:3px;background:var(--lime)}
 .nav .fab{justify-self:center;padding:0;width:62px;height:62px;margin-top:-34px;background:var(--lime);color:var(--ink);font:800 calc(34px * var(--fs, 1))/1 var(--display);
-  clip-path:polygon(14px 0,56% 0,calc(56% + 6px) 6px,100% 6px,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 14px);display:grid;place-items:center;padding-top:6px}
+  clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);display:grid;place-items:center}
 
 /* нажатие: сдвиг + инверсия на миг */
 .press{transition:transform var(--t-fast) var(--ease-out),filter var(--t-fast)}
@@ -422,7 +422,7 @@ table.motion th{color:var(--grey);font-weight:500}
       <div class="demo"><div class="t">Панель A · главная</div><div class="d">Крупные срезы, ступенька сверху, вырез слева снизу. Снаружи слева — оторванная планка и штриховка, справа сверху — рельс параллельно срезу.</div><div class="panel lime shape-a" style="height:90px;margin:0 10px"></div></div>
       <div class="demo"><div class="t">Панель B · вторая</div><div class="d">Большой срез справа сверху, вырез справа с отдельной планкой, оторванный уголок снизу слева.</div><div class="panel paper shape-b" style="height:90px;margin:0 10px"></div></div>
       <div class="demo"><div class="t">Панель C · строка</div><div class="d">Два малых среза. Списки, операции, карточки категорий.</div><div class="panel dark shape-c" style="height:70px;margin:0"></div></div>
-      <div class="demo"><div class="t">Кнопки</div><div class="d">Цельная форма: срезы по углам, по центру верхней грани приподнятая «чёлка» (24–66% ширины), отступы 26 по бокам. Вторичная — контур той же формы.</div><div style="display:flex;flex-direction:column;gap:8px"><button class="btn primary press"><span>Записать</span><span class="arrows">⇲⇲</span></button><button class="btn ghost press"><span>Отмена</span><span class="cjk">取消</span></button></div></div>
+      <div class="demo"><div class="t">Кнопки</div><div class="d">Цельная форма: срезы по углам и приподнятая «чёлка» сверху. 4 варианта одного языка: положение чёлки и размеры срезов разные; кнопки на одном экране не повторяются. Вторичная — контур той же формы.</div><div style="display:flex;flex-direction:column;gap:8px"><button class="btn primary press"><span>Записать</span><span class="arrows">⇲⇲</span></button><button class="btn ghost press"><span>Отмена</span><span class="cjk">取消</span></button></div></div>
       <div class="demo"><div class="t">Декор</div><div class="d">Штриховка, стрелки ⇲, крестики-маркеры, серийники. Не больше 2–3 на панель.</div><div class="stage" style="color:var(--lime);gap:14px;display:flex;justify-content:center"><div class="hatch"></div><span class="arrows">⇲⇲⇲</span><span class="cross" style="position:relative;opacity:1"></span><span style="font-size:calc(9px * var(--fs, 1));color:var(--grey)">SN 48-1508F</span></div></div>
     </div>
 
@@ -473,6 +473,30 @@ table.motion th{color:var(--grey);font-weight:500}
       w.appendChild(i);
     });
   });
+
+  // геометрия длинных кнопок: один «язык» (срезы, приподнятая чёлка), но у каждой кнопки свой вариант.
+  // Вариант выбирается по тексту кнопки (стабильно между запусками); соседние кнопки на экране не повторяются.
+  const BTN_VARIANTS = [
+    { tab: [24, 66], h: 6, tl: 12, tr: 18, br: 10, bl: 26 },
+    { tab: [38, 84], h: 6, tl: 20, tr: 10, br: 24, bl: 10 },
+    { tab: [12, 50], h: 7, tl: 10, tr: 22, br: 12, bl: 20 },
+    { tab: [30, 62], h: 5, tl: 16, tr: 14, br: 20, bl: 14 },
+  ];
+  const btnShape = v => `polygon(0 ${v.tl + v.h}px,${v.tl}px ${v.h}px,${v.tab[0]}% ${v.h}px,calc(${v.tab[0]}% + ${v.h}px) 0,calc(${v.tab[1]}% - ${v.h}px) 0,${v.tab[1]}% ${v.h}px,calc(100% - ${v.tr}px) ${v.h}px,100% ${v.tr + v.h}px,100% calc(100% - ${v.br}px),calc(100% - ${v.br}px) 100%,${v.bl}px 100%,0 calc(100% - ${v.bl}px))`;
+  const hash = t => [...t].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  function shapeButtons() {
+    const groups = new Map();
+    $$('.btn').forEach(b => { const g = b.closest('.panel, .sheet, .demo') || document.body; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(b); });
+    groups.forEach(list => {
+      const used = new Set();
+      list.forEach(b => {
+        let k = hash(b.textContent.trim()) % BTN_VARIANTS.length;
+        while (used.has(k) && used.size < BTN_VARIANTS.length) k = (k + 1) % BTN_VARIANTS.length;
+        used.add(k); b.style.setProperty('--btn-shape', btnShape(BTN_VARIANTS[k])); b.dataset.shape = k + 1;
+      });
+    });
+  }
+  shapeButtons();
 
   // вид страницы: только телефон / телефон + спецификация (запоминается в браузере)
   function setView(v) {
