@@ -79,6 +79,42 @@ interface KassaDao {
     @Query("UPDATE goals SET saved = MAX(0, saved + :delta) WHERE id = :id")
     suspend fun addGoalSaved(id: String, delta: Long)
 
+    @Upsert
+    suspend fun upsertLoan(loan: LoanEntity)
+
+    @Query("SELECT position FROM loans WHERE id = :id")
+    suspend fun loanPosition(id: String): Int?
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM loans")
+    suspend fun maxLoanPosition(): Int
+
+    @Query("DELETE FROM loans WHERE id = :id")
+    suspend fun deleteLoan(id: String)
+
+    @Query("SELECT * FROM loans WHERE id = :id")
+    suspend fun loanById(id: String): LoanEntity?
+
+    /** Изменить остаток кредита; меньше нуля не опускаем. */
+    @Query("UPDATE loans SET balance = MAX(0, balance + :delta) WHERE id = :id")
+    suspend fun addLoanBalance(id: String, delta: Long)
+
+    /** Правка кредита без остатка: платёж, внесённый пока открыта форма, не затрётся. */
+    @Query("UPDATE loans SET name = :name, total = MAX(:total, balance), pay = :pay, rate = :rate, day = :day WHERE id = :id")
+    suspend fun updateLoanInfo(id: String, name: String, total: Long, pay: Long, rate: Double, day: Int)
+
+    /**
+     * Платёж по кредиту: погашенная часть считается от остатка в базе (а не на экране) — сначала проценты,
+     * остальное в долг (kassa.html). Возвращает погашенное или null, если кредита уже нет.
+     */
+    @Transaction
+    suspend fun payLoan(tx: TxEntity, loanId: String, principal: (LoanEntity) -> Long): Long? {
+        val l = loanById(loanId) ?: return null
+        val princ = principal(l)
+        insertTx(listOf(tx.copy(refPrinc = princ)))
+        addLoanBalance(loanId, -princ)
+        return princ
+    }
+
     @Query("SELECT * FROM tx WHERE id = :id")
     suspend fun txById(id: String): TxEntity?
 
@@ -93,6 +129,8 @@ interface KassaDao {
     suspend fun deleteTxAndUndo(id: String) {
         val t = txById(id) ?: return
         if (t.refKind == "goal" && t.refId != null) addGoalSaved(t.refId, -t.rub)
+        // платёж по кредиту: погашенная часть возвращается в остаток
+        if (t.refKind == "loan" && t.refId != null) addLoanBalance(t.refId, t.refPrinc ?: 0L)
         deleteTx(id)
     }
 
@@ -106,6 +144,7 @@ interface KassaDao {
     @Query("SELECT * FROM goals ORDER BY position") suspend fun allGoals(): List<GoalEntity>
     @Query("SELECT * FROM tx ORDER BY d, ts") suspend fun allTx(): List<TxEntity>
     @Query("SELECT id FROM tx") suspend fun allTxIds(): List<String>
+    @Query("SELECT * FROM tx WHERE ref_kind = 'loan'") suspend fun loanTx(): List<TxEntity>
 
     @Query("SELECT COALESCE(MAX(position), -1) FROM persons")
     suspend fun maxPersonPosition(): Int
@@ -116,15 +155,18 @@ interface KassaDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertRecurring(list: List<RecurringEntity>)
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertTx(list: List<TxEntity>)
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertGoals(list: List<GoalEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertLoans(list: List<LoanEntity>)
 
     /** Добавить всё из копии одной транзакцией: либо всё, либо ничего. */
     @Transaction
     suspend fun insertBackup(
         cats: List<CategoryEntity>, persons: List<PersonEntity>, rec: List<RecurringEntity>, tx: List<TxEntity>,
         goals: List<GoalEntity>, goalTopUps: Map<String, Long>,
+        loans: List<LoanEntity> = emptyList(), loanPayoffs: Map<String, Long> = emptyMap(),
     ) {
-        insertCategories(cats); insertPersons(persons); insertRecurring(rec); insertGoals(goals); insertTx(tx)
+        insertCategories(cats); insertPersons(persons); insertRecurring(rec); insertGoals(goals); insertLoans(loans); insertTx(tx)
         goalTopUps.forEach { (id, delta) -> addGoalSaved(id, delta) }
+        loanPayoffs.forEach { (id, princ) -> addLoanBalance(id, -princ) }
     }
 
     /** Правка цели без накопленного: взнос, сделанный пока открыта форма, не затрётся. */

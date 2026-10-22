@@ -19,11 +19,13 @@ data class Budget(
     val days: Int,
     /** Σ постоянных доходов из плана. */
     val planInc: Long,
-    /** Обязательные: Σ платежей плана + платежи по открытым кредитам + ещё не отложенные взносы на цели с датой. */
+    /** Обязательные: Σ платежей плана + ещё не внесённые платежи месяца по кредитам + ещё не отложенные взносы на цели с датой. */
     val fixed: Long,
+    /** Часть fixed: сколько в этом месяце ещё нужно внести по кредитам и долгам. */
+    val loansReserve: Long,
     /** Часть fixed: сколько в этом месяце ещё нужно отложить на цели с датой. */
     val goalsReserve: Long,
-    /** Обычные траты месяца (без ref) + взносы в цели. */
+    /** Обычные траты месяца (без ref) + взносы в цели + платежи по кредитам. */
     val varSpent: Long,
     /** Обычные траты сегодня (без ref). */
     val spentToday: Long,
@@ -51,10 +53,12 @@ fun budget(rec: List<Recurring>, loans: List<Loan>, goals: List<Goal>, tx: List<
     // у цели с датой в fixed резервируется ещё не отложенная часть взноса месяца (goalPlan).
     // Сами взносы уменьшают «свободно» (varSpent), но не «потрачено сегодня».
     val goalsReserve = goals.sumOf { goalPlan(it, tx, today).reserve }
-    val fixed = rec.filter { it.type == CatType.EXP }.sumOf { it.amt } +
-        loans.filter { it.balance > 0 }.sumOf { it.pay } +
-        goalsReserve
-    val toGoal = { x: Tx -> x.ref?.kind == RefKind.GOAL }
+    // Кредиты (решение 0.7, 2026-10-22) — так же, как цели: в fixed ещё не внесённая часть платежа месяца,
+    // а внесённое — в varSpent. Так досрочный платёж и возврат долга без графика тоже уменьшают «свободно».
+    // В kassa.html в fixed шёл весь pay, а платежи в траты не входили; при платеже ровно pay итог тот же.
+    val loansReserve = loans.sumOf { loanPlan(it, tx, today).reserve }
+    val fixed = rec.filter { it.type == CatType.EXP }.sumOf { it.amt } + loansReserve + goalsReserve
+    val toGoal = { x: Tx -> x.ref?.kind == RefKind.GOAL || x.ref?.kind == RefKind.LOAN }
     val varSpent = mtx.filter { it.t == TxType.EXP && (free0(it) || toGoal(it)) }.sumOf { it.rub }
     val spentToday = mtx.filter { it.t == TxType.EXP && free0(it) && it.d == td }.sumOf { it.rub }
     val extraInc = mtx.filter { it.t == TxType.INC && free0(it) }.sumOf { it.rub }
@@ -67,6 +71,7 @@ fun budget(rec: List<Recurring>, loans: List<Loan>, goals: List<Goal>, tx: List<
         days = YearMonth.from(today).lengthOfMonth(),
         planInc = planInc,
         fixed = fixed,
+        loansReserve = loansReserve,
         goalsReserve = goalsReserve,
         varSpent = varSpent,
         spentToday = spentToday,
@@ -95,6 +100,53 @@ fun goalPlan(g: Goal, tx: List<Tx>, today: LocalDate): GoalPlan {
     val perRub = 100L * months
     val plan = (need + perRub - 1) / perRub * 100
     return GoalPlan(month, plan, maxOf(0L, plan - month), months)
+}
+
+/** Проценты за месяц, копейки (дробные): balance × rate / 1200, как в kassa.html. */
+fun loanInterest(l: Loan): Double = l.balance * l.rate / 1200
+
+/** Платёж amt по кредиту: сколько из него уменьшит долг. Сначала проценты, остальное — в долг, не больше остатка. */
+fun loanPrincipal(l: Loan, amt: Long): Long =
+    Math.round(minOf(l.balance.toDouble(), maxOf(0.0, amt - loanInterest(l)))).coerceIn(0L, maxOf(0L, l.balance))
+
+/**
+ * Кредит в этом месяце. month — внесено в этом месяце; plan — платёж месяца (pay, но не больше, чем осталось
+ * с процентами, вверх до рубля); reserve — сколько из plan ещё не внесено. Без платежа (долг без графика) plan = 0.
+ */
+data class LoanPlan(val month: Long, val plan: Long, val reserve: Long)
+
+fun loanPlan(l: Loan, tx: List<Tx>, today: LocalDate): LoanPlan {
+    val key = monthKey(today)
+    val month = tx.filter { it.d.startsWith(key) && it.ref?.kind == RefKind.LOAN && it.ref.id == l.id }.sumOf { it.rub }
+    if (l.pay <= 0) return LoanPlan(month, 0, 0)
+    val rest = Math.ceil((maxOf(0L, l.balance) + loanInterest(l)) / 100).toLong() * 100
+    val plan = minOf(l.pay, month + rest)
+    return LoanPlan(month, plan, maxOf(0L, plan - month))
+}
+
+/** Прогноз закрытия — loanForecast в kassa.html. */
+sealed interface LoanForecast {
+    data object Closed : LoanForecast
+    /** Платежа в месяц нет — возвращается когда получится. */
+    data object NoSchedule : LoanForecast
+    data object NotCovering : LoanForecast
+    data object TooLong : LoanForecast
+    /** Закроется через [months] месяцев, в месяце [at]. */
+    data class In(val months: Int, val at: YearMonth) : LoanForecast
+}
+
+fun loanForecast(l: Loan, today: LocalDate): LoanForecast {
+    var b = l.balance.toDouble()
+    if (b <= 0) return LoanForecast.Closed
+    if (l.pay <= 0) return LoanForecast.NoSchedule
+    var m = 0
+    while (b > 0 && m < 600) {
+        val i = b * l.rate / 1200
+        if (l.pay <= i) return LoanForecast.NotCovering
+        b -= l.pay - i; m++
+    }
+    if (m >= 600) return LoanForecast.TooLong
+    return LoanForecast.In(m, YearMonth.from(today).plusMonths(m.toLong()))
 }
 
 /** Операция, которой строка плана проведена в месяце today (paidThisMonth в kassa.html), или null. */

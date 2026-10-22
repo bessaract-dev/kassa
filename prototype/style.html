@@ -565,7 +565,8 @@ table.motion th{color:var(--grey);font-weight:500}
     if (!(l.pay > 0)) return short ? '' : 'без графика';
     while (b > 0 && m < 600) { const i = b * (l.rate || 0) / 1200; if (l.pay <= i) return short ? 'не покрывает %' : 'платёж не покрывает проценты'; b -= l.pay - i; m++; }
     if (m >= 600) return 'больше 50 лет';
-    const d = new Date(); d.setMonth(d.getMonth() + m);
+    // с 1-го числа: иначе 31.10 + 11 мес. «перескочит» на месяц вперёд
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + m);
     if (short) return 'до ' + d.toLocaleDateString('ru-RU', { month: 'short', year: 'numeric' }).replace(' г.', '');
     return 'закроется ' + d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', '') + ` (${m} мес.)`;
   }
@@ -707,7 +708,7 @@ table.motion th{color:var(--grey);font-weight:500}
   // «Расходы»: обязательные платежи (добавить, поправить, «Оплатил»), дальше — кредиты и долги
   function vExp() {
     const exp = byDay(S.rec.filter(r => r.type === 'exp')), paid = exp.filter(r => paidTx(r.id));
-    const lp = S.loans.map(loanPlan), loansPlan = sum(lp, x => x.plan), loansPaid = sum(lp, x => x.month), loansDue = sum(lp, x => x.reserve);
+    const lp = S.loans.map(loanPlan), loansPlan = sum(lp, x => x.plan), loansPaid = sum(lp, x => Math.min(x.month, x.plan)), loansDue = sum(lp, x => x.reserve);
     const total = sum(exp, r => r.amt) + loansPlan, paidSum = sum(paid, r => paidTx(r.id).rub) + loansPaid;
     const due = sum(exp.filter(r => !paidTx(r.id)), r => r.amt) + loansDue, debt = sum(S.loans, l => Math.max(0, l.balance));
     let h = `<div class="panel paper shape-b${rv()}" style="padding-bottom:22px">${lbl('Обязательные в месяц', '付款')}
@@ -915,7 +916,7 @@ table.motion th{color:var(--grey);font-weight:500}
       h.push(`<p class="info">«${esc(l.name)}»: осталось ${fmtN(l.balance)}.${l.rate > 0 ? ` Проценты за месяц ${fmtN(i)} (${String(l.rate).replace('.', ',')}% годовых) — они гасятся первыми, остальное уменьшает долг.` : ''} Сумма вычтется из «Свободно до конца месяца».</p>`);
       h.push(`<input class="inp big" data-f="amt" inputmode="decimal" placeholder="0" value="${esc(f.amt)}">`);
       if (f.err) h.push(`<div class="err">${esc(f.err)}</div>`);
-      h.push(`<div class="f-lbl">Дата</div><div class="date-row"><span class="chip" data-act="dayBack">‹</span><span class="d${f.d === td ? ' today' : ''}" data-act="dayToday">${formDay(f.d)}</span>${f.d < td ? '<span class="chip" data-act="dayFwd">›</span>' : ''}</div>`);
+      h.push(`<div class="f-lbl">Дата</div><div class="date-row">${f.d.slice(8) !== '01' ? '<span class="chip" data-act="dayBack">‹</span>' : ''}<span class="d${f.d === td ? ' today' : ''}" data-act="dayToday">${formDay(f.d)}</span>${f.d < td ? '<span class="chip" data-act="dayFwd">›</span>' : ''}</div>`);
       h.push('<div style="height:12px"></div>' + btn('primary', 'savePay', l.rate > 0 ? 'Внести' : 'Вернуть', '<span class="arrows">⇲⇲</span>'));
     } else if (f.kind === 'settings') {
       h.push(`<h3><span>Настройки</span><span class="h3r"><span class="cjk">设置</span><button class="sh-x press" data-act="cancel" aria-label="Закрыть">✕</button></span></h3>`);
@@ -1024,6 +1025,9 @@ table.motion th{color:var(--grey);font-weight:500}
       m.tx.forEach(t => { const g = t.ref && t.ref.k === 'goal' && S.goals.find(x => x.id === t.ref.id); if (g) g.saved += t.rub; });
       // и новые платежи по кредитам, что уже есть, уменьшают их остаток
       m.tx.forEach(t => { const l = t.ref && t.ref.k === 'loan' && S.loans.find(x => x.id === t.ref.id); if (l) l.balance = Math.max(0, Math.round((l.balance - (t.ref.princ || 0)) * 100) / 100); });
+      // кредит, удалённый в телефоне и вернувшийся из копии: вычесть платежи, сделанные после копии (они остались в истории)
+      const fileTx = new Set(form.pending.tx.map(t => t.id));
+      m.loans.forEach(l => S.tx.forEach(t => { if (t.ref && t.ref.k === 'loan' && t.ref.id === l.id && !fileTx.has(t.id)) l.balance = Math.max(0, Math.round((l.balance - (t.ref.princ || 0)) * 100) / 100); }));
       S.cats.push(...m.cats); S.persons.push(...m.persons); S.rec.push(...m.rec); S.loans.push(...m.loans); S.goals.push(...m.goals); S.tx.push(...m.tx);
       save(); closeSheet(); render(true); toast(`Добавлено: ${m.tx.length} операций, ${m.rec.length} строк плана`);
     },
@@ -1157,7 +1161,7 @@ table.motion th{color:var(--grey);font-weight:500}
   }
   scroll.addEventListener('click', onAct);
   sheet.addEventListener('click', onAct);
-  sheet.addEventListener('keydown', e => { if (e.key === 'Enter' && form && ['tx', 'rec', 'loan', 'payLoan'].includes(form.kind)) { readInputs(); ({ tx: A.saveTx, rec: A.saveRec, loan: A.saveLoan, payLoan: A.savePay })[form.kind](); } });
+  sheet.addEventListener('keydown', e => { if (e.key === 'Enter' && form && ['tx', 'rec', 'loan', 'payLoan'].includes(form.kind) && !form.ref) { readInputs(); ({ tx: A.saveTx, rec: A.saveRec, loan: A.saveLoan, payLoan: A.savePay })[form.kind](); } });
   $('#scrim').onclick = closeSheet;
   $('#fab').onclick = () => openSheet(newTx());
   $$('.nav [data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(true); });

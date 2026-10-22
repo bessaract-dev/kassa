@@ -3,6 +3,11 @@ package dev.bessaract.kassa.core
 import dev.bessaract.kassa.core.calc.RecStatus
 import dev.bessaract.kassa.core.calc.budget
 import dev.bessaract.kassa.core.calc.goalPlan
+import dev.bessaract.kassa.core.calc.LoanForecast
+import dev.bessaract.kassa.core.calc.loanForecast
+import dev.bessaract.kassa.core.calc.loanPlan
+import dev.bessaract.kassa.core.calc.loanPrincipal
+import java.time.YearMonth
 import dev.bessaract.kassa.core.calc.recStatus
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Goal
@@ -129,5 +134,59 @@ class BudgetTest {
         // без даты или с кривой датой — копилка
         assertEquals(0L, goalPlan(g.copy(by = ""), emptyList(), today).plan)
         assertEquals(0L, goalPlan(g.copy(by = "2026-13-40"), emptyList(), today).plan)
+    }
+
+    @Test
+    fun loanPaymentMovesFromReserveToSpent() {
+        val car = Loan("car", "Кредит", 450_000_00, 100_000_00, 5_000_00, 12.0, 15)
+        val before = budget(plan, listOf(car), emptyList(), emptyList(), today)
+        assertEquals(5_000_00L, before.loansReserve)
+        // платёж ровно pay: резерв уходит, сумма — в траты месяца; «свободно» то же, «потрачено сегодня» не меняется
+        val paid = listOf(tx("2026-10-15", 5_000, ref = TxRef(RefKind.LOAN, "car", 4_000_00)))
+        val after = budget(plan, listOf(car), emptyList(), paid, today)
+        assertEquals(0L, after.loansReserve)
+        assertEquals(5_000_00L, after.varSpent)
+        assertEquals(before.free, after.free)
+        // досрочно сверх платежа — «свободно» уменьшается на лишнее
+        val extra = paid + tx("2026-10-22", 2_000, ref = TxRef(RefKind.LOAN, "car", 2_000_00))
+        val b = budget(plan, listOf(car), emptyList(), extra, today)
+        assertEquals(before.free - 2_000_00, b.free)
+        assertEquals(0L, b.spentToday)
+    }
+
+    @Test
+    fun debtWithoutScheduleCountsOnlyWhenReturned() {
+        val mom = Loan("mom", "Долг маме", 30_000_00, 21_000_00, 0, 0.0, 1)
+        val none = budget(plan, listOf(mom), emptyList(), emptyList(), today)
+        assertEquals(0L, none.loansReserve)
+        val back = budget(plan, listOf(mom), emptyList(), listOf(tx("2026-10-03", 3_000, ref = TxRef(RefKind.LOAN, "mom", 3_000_00))), today)
+        assertEquals(none.free - 3_000_00, back.free)
+    }
+
+    @Test
+    fun loanPlanCappedByWhatIsLeft() {
+        // остаток 2 000 ₽ под 12%: проценты 20 ₽ → платёж месяца 2 020, а не 5 000
+        val l = Loan("x", "x", 10_000_00, 2_000_00, 5_000_00, 12.0, 15)
+        assertEquals(2_020_00L, loanPlan(l, emptyList(), today).plan)
+        val closed = l.copy(balance = 0)
+        assertEquals(0L, loanPlan(closed, emptyList(), today).reserve)
+    }
+
+    @Test
+    fun loanPrincipalInterestFirst() {
+        // как payLoan в kassa.html: 412 000 × 14,9% / 12 = 5 115,67 ₽ процентов, остальное — в долг
+        val l = Loan("x", "x", 600_000_00, 412_000_00, 18_500_00, 14.9, 28)
+        assertEquals(13_384_33L, loanPrincipal(l, 18_500_00))
+        // платёж меньше процентов — долг не уменьшается; больше остатка — гасится только остаток
+        assertEquals(0L, loanPrincipal(l, 5_000_00))
+        assertEquals(1_000_00L, loanPrincipal(l.copy(balance = 1_000_00, rate = 0.0), 5_000_00))
+    }
+
+    @Test
+    fun loanForecastLikeKassaHtml() {
+        assertEquals(LoanForecast.In(4, YearMonth.of(2027, 2)), loanForecast(Loan("x", "x", 0, 10_000_00, 3_000_00, 0.0, 1), today))
+        assertEquals(LoanForecast.NotCovering, loanForecast(Loan("x", "x", 0, 1_000_000_00, 5_000_00, 12.0, 1), today))
+        assertEquals(LoanForecast.NoSchedule, loanForecast(Loan("x", "x", 0, 1_000_00, 0, 0.0, 1), today))
+        assertEquals(LoanForecast.Closed, loanForecast(Loan("x", "x", 0, 0, 1_000_00, 0.0, 1), today))
     }
 }

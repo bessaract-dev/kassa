@@ -9,7 +9,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import dev.bessaract.kassa.core.calc.goalPlan
+import dev.bessaract.kassa.core.calc.loanForecast
+import dev.bessaract.kassa.core.calc.loanPlan
+import dev.bessaract.kassa.core.model.Loan
+import dev.bessaract.kassa.ui.loanForecastText
+import dev.bessaract.kassa.ui.rateText
 import dev.bessaract.kassa.core.calc.recPayment
 import dev.bessaract.kassa.core.model.Goal
 import dev.bessaract.kassa.core.model.RefKind
@@ -71,13 +80,19 @@ import java.time.format.DateTimeFormatter
 /** Действия со строкой плана: открыть на правку и «Оплатил» / «Получил». */
 class PlanActions(val onEdit: (Recurring) -> Unit, val onPost: (Recurring) -> Unit)
 
+/** Действия с кредитами и долгами. */
+class LoanActions(val onEdit: (Loan) -> Unit, val onPay: (Loan) -> Unit, val onNew: () -> Unit)
+
 /**
  * «Сегодня». Пока доходов нет — «Потрачено сегодня» и подсказка открыть План.
  * Когда есть — «Осталось на сегодня» (красное при перерасходе), «Свободно до конца месяца»
  * и строки плана, которые ещё ждут проведения. Формулы — budget() из kassa.html.
  */
 @Composable
-fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpenPlan: () -> Unit, onOpenHistory: () -> Unit = {}) {
+fun TodayScreen(
+    s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpenPlan: () -> Unit, onOpenHistory: () -> Unit = {},
+    loans: LoanActions = LoanActions({}, {}, {}),
+) {
     val b = s.budget
     val sp = s.spending
     // Главная цифра есть только на этом экране — пока он открыт, глитч может выбрать её.
@@ -133,11 +148,19 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpe
                 modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
             )
         }
-        val due = s.rec.byDay().filter { recStatus(it, s.monthTx, s.today) !is RecStatus.Done }
+        // ждут оплаты: строки плана и платежи по кредитам, по числам
+        val dueRec = s.rec.filter { recStatus(it, s.monthTx, s.today) !is RecStatus.Done }.map { it.day to (it as Any) }
+        val dueLoans = s.loans.filter { loanPlan(it, s.monthTx, s.today).reserve > 0 }.map { it.day to (it as Any) }
+        val due = (dueRec + dueLoans).sortedBy { it.first }.map { it.second }
         if (due.isNotEmpty()) {
             ListHeader("待付", "Ждут в этом месяце", "%02d шт".format(due.size), Modifier.reveal(4))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                due.forEachIndexed { i, r -> key(r.id) { RecRow(r, s, Modifier.reveal(5 + i), plan) } }
+                due.forEachIndexed { i, x ->
+                    when (x) {
+                        is Recurring -> key(x.id) { RecRow(x, s, Modifier.reveal(5 + i), plan) }
+                        is Loan -> key(x.id) { LoanRow(x, s, Modifier.reveal(5 + i), loans) }
+                    }
+                }
             }
         }
     }
@@ -177,7 +200,7 @@ fun HistoryScreen(s: SpendingState, onEdit: (Tx) -> Unit) {
     val groups = s.spending.byDay
     val b = s.budget
     // плашка: остаток (= «Свободно до конца месяца») и из чего он складывается
-    val due = s.rec.filter { it.type == CatType.EXP && recStatus(it, s.monthTx, s.today) !is RecStatus.Done }.sumOf { it.amt }
+    val due = s.rec.filter { it.type == CatType.EXP && recStatus(it, s.monthTx, s.today) !is RecStatus.Done }.sumOf { it.amt } + b.loansReserve
     Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(2)) {
         PanelLabel("Остаток на месяц", "本月", KassaColors.Ink)
         Row(Modifier.padding(top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.Bottom) {
@@ -222,8 +245,10 @@ fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onOpenEx
     val b = s.budget
     val inc = s.rec.filter { it.type == CatType.INC }.byDay()
     val exp = s.rec.filter { it.type == CatType.EXP }.byDay()
-    val recExp = exp.sumOf { it.amt }
-    val rest = b.planInc - b.fixed
+    // платежи месяца целиком (с уже внесённым), чтобы остаток не менялся от отметок «Оплатил»
+    val activeLoans = s.loans.filter { it.balance > 0 && it.pay > 0 }
+    val recExp = exp.sumOf { it.amt } + s.loans.sumOf { loanPlan(it, s.monthTx, s.today).plan }
+    val rest = b.planInc - recExp - b.goalsReserve
     val paid = exp.count { recStatus(it, s.monthTx, s.today) is RecStatus.Done }
     var filter by rememberSaveable { mutableStateOf(PlanFilter.ALL) }
     Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(2)) {
@@ -238,8 +263,8 @@ fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onOpenEx
         )
         Column(Modifier.padding(top = 10.dp, bottom = 8.dp)) {
             SplitRow("Доходы", "+" + formatRub(b.planInc, symbol = false))
-            // всё обязательное, кроме целей (с 0.7 сюда войдут и платежи по кредитам)
-            SplitRow("Обязательные платежи", "−" + formatRub(b.fixed - b.goalsReserve, symbol = false))
+            // платежи плана и кредиты, без целей
+            SplitRow("Обязательные платежи", "−" + formatRub(recExp, symbol = false))
             if (b.goalsReserve > 0) SplitRow("На цели", "−" + formatRub(b.goalsReserve, symbol = false))
         }
     }
@@ -254,17 +279,24 @@ fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onOpenEx
             "+${formatRub(b.planInc, symbol = false)} / −${formatRub(recExp, symbol = false)}", Modifier.reveal(i++),
         )
     }
-    val rows = when (filter) {
+    val recRows = when (filter) {
         PlanFilter.INC -> inc
         PlanFilter.EXP -> exp
-        PlanFilter.ALL -> s.rec.byDay()
+        PlanFilter.ALL -> s.rec
     }
+    // кредиты с платежом — вместе с обязательными, по числам
+    val rows = (recRows.map { it.day to (it as Any) } + (if (filter == PlanFilter.INC) emptyList() else activeLoans.map { it.day to (it as Any) }))
+        .sortedBy { it.first }.map { it.second }
+    val noLoanActions = LoanActions({ onOpenExpenses() }, {}, {})
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // обязательные платежи здесь только для обзора: добавляются, правятся и оплачиваются во вкладке «Расходы»
-        rows.forEach { r ->
-            key(r.id) {
-                if (r.type == CatType.INC) RecRow(r, s, Modifier.reveal(i++), plan)
-                else RecRow(r, s, Modifier.reveal(i++), plan, withButton = false, onClick = onOpenExpenses)
+        rows.forEach { x ->
+            when (x) {
+                is Recurring -> key(x.id) {
+                    if (x.type == CatType.INC) RecRow(x, s, Modifier.reveal(i++), plan)
+                    else RecRow(x, s, Modifier.reveal(i++), plan, withButton = false, onClick = onOpenExpenses)
+                }
+                is Loan -> key(x.id) { LoanRow(x, s, Modifier.reveal(i++), noLoanActions, withButton = false) }
             }
         }
         if (filter != PlanFilter.EXP) AddRow(addInc, Modifier.reveal(i++), onClick = onAddIncome)
@@ -362,24 +394,28 @@ private fun RecRow(
 }
 
 /**
- * «Расходы»: обязательные платежи месяца — сколько всего, оплачено и предстоит; добавить, поправить, «Оплатил».
- * Ниже место под кредиты и долги (следующая версия).
+ * «Расходы»: обязательные платежи месяца — сколько всего, внесено и предстоит; добавить, поправить, «Оплатил».
+ * Ниже кредиты и долги: остаток, прогноз, «Внести» / «Вернуть».
  */
 @Composable
-fun ExpensesScreen(s: SpendingState, plan: PlanActions, onAdd: () -> Unit) {
+fun ExpensesScreen(s: SpendingState, plan: PlanActions, loans: LoanActions = LoanActions({}, {}, {}), onAdd: () -> Unit) {
     val exp = s.rec.filter { it.type == CatType.EXP }.byDay()
     val paid = exp.mapNotNull { r -> recPayment(r.id, s.monthTx, s.today) }
     val due = exp.filter { recPayment(it.id, s.monthTx, s.today) == null }
+    val lp = s.loans.map { loanPlan(it, s.monthTx, s.today) }
+    val debt = s.loans.sumOf { maxOf(0L, it.balance) }
     Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(2)) {
         PanelLabel("Обязательные в месяц", "付款", KassaColors.Ink)
         Row(Modifier.padding(top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.Bottom) {
-            ScrambleText(formatRub(exp.sumOf { it.amt }, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
+            ScrambleText(formatRub(exp.sumOf { it.amt } + lp.sumOf { it.plan }, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
             Text(" ₽", style = KassaType.Mid.copy(color = KassaColors.Ink))
         }
-        Text("аренда, связь, подписки — каждый месяц", style = KassaType.Small.copy(color = KassaColors.Ink.copy(alpha = 0.75f)))
+        Text("платежи и кредиты — каждый месяц", style = KassaType.Small.copy(color = KassaColors.Ink.copy(alpha = 0.75f)))
         Column(Modifier.padding(top = 10.dp, bottom = 8.dp)) {
-            SplitRow("Оплачено (${paid.size})", "−" + formatRub(paid.sumOf { it.rub }, symbol = false))
-            SplitRow("Предстоит (${due.size})", "−" + formatRub(due.sumOf { it.amt }, symbol = false))
+            // по кредитам — в пределах платежа месяца, чтобы «Внесено» + «Предстоит» = итог
+            SplitRow("Внесено", "−" + formatRub(paid.sumOf { it.rub } + lp.sumOf { minOf(it.month, it.plan) }, symbol = false))
+            SplitRow("Предстоит", "−" + formatRub(due.sumOf { it.amt } + lp.sumOf { it.reserve }, symbol = false))
+            if (s.loans.isNotEmpty()) SplitRow("Долгов осталось всего", formatRub(debt, symbol = false))
         }
     }
     var i = 3
@@ -388,16 +424,68 @@ fun ExpensesScreen(s: SpendingState, plan: PlanActions, onAdd: () -> Unit) {
         exp.forEach { r -> key(r.id) { RecRow(r, s, Modifier.reveal(i++), plan) } }
         AddRow("Добавить платёж (аренда, связь…)", Modifier.reveal(i++), onClick = onAdd)
     }
-    ListHeader("债", "Кредиты и долги", "", Modifier.reveal(i++))
-    Panel(ShapeC, PanelKind.DARK, Modifier.reveal(i++)) {
-        PanelLabel("В разработке", "开发中", KassaColors.Grey)
-        Text("Кредиты и долги с графиком платежей и процентами — следующая версия.", style = KassaType.Body, modifier = Modifier.padding(top = 10.dp))
+    ListHeader("债", "Кредиты и долги", if (debt > 0) "осталось " + formatRub(debt, symbol = false) else "", Modifier.reveal(i++))
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // открытые сверху, выплаченные — в конце
+        (s.loans.filter { it.balance > 0 } + s.loans.filter { it.balance <= 0 }).forEach { l -> key(l.id) { LoanRow(l, s, Modifier.reveal(i++), loans) } }
+        AddRow("Добавить кредит или долг (маме, рассрочка…)", Modifier.reveal(i++), onClick = loans.onNew)
     }
     Text(
-        "«Оплатил» записывает трату на сегодня с суммой платежа. Ошибся — удали операцию в Истории, отметка снимется.",
+        "«Оплатил» записывает трату на сегодня с суммой платежа. «Внести» по кредиту: сначала гасятся проценты за месяц, " +
+            "остальное уменьшает долг. Ошибся — удали операцию в Истории, отметка снимется и долг вернётся.",
         style = KassaType.Small.copy(fontSize = KassaType.Body.fontSize * 0.92f),
         modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp).reveal(i),
     )
+}
+
+/**
+ * Кредит или долг: статус платежа месяца, ставка, остаток из взятого, прогноз, полоса выплаченного,
+ * платёж месяца и «Внести» (с процентами) / «Вернуть» (без), пока платёж месяца не внесён или графика нет.
+ */
+@Composable
+private fun LoanRow(l: Loan, s: SpendingState, modifier: Modifier, loans: LoanActions, withButton: Boolean = true) {
+    val lp = loanPlan(l, s.monthTx, s.today)
+    val closed = l.balance <= 0
+    val done = closed || (lp.plan > 0 && lp.reserve == 0L)
+    val p = if (l.total > 0) ((l.total - l.balance).toDouble() / l.total).coerceIn(0.0, 1.0) else 0.0
+    val (st, color) = when {
+        closed -> "✓ выплачен" to KassaColors.Lime
+        lp.plan > 0 && lp.reserve == 0L -> "✓ внесено ${formatRub(lp.month, symbol = false)}" to KassaColors.Lime
+        lp.plan > 0 && l.day < s.today.dayOfMonth -> "срок был ${l.day}-го" to KassaColors.Warn
+        lp.plan > 0 -> "ждёт ${l.day}-го" to KassaColors.Grey
+        lp.month > 0 -> "в этом месяце ${formatRub(lp.month, symbol = false)}" to KassaColors.Lime
+        else -> "без графика" to KassaColors.Grey
+    }
+    val fc = loanForecastText(loanForecast(l, s.today), short = true)
+    val nb = { x: String -> x.replace(' ', '\u00A0') }
+    val meta = "${nb(formatRub(maxOf(0L, l.balance), symbol = false))} из ${nb(formatRub(l.total, symbol = false))}" + if (fc.isNotEmpty()) " · ${nb(fc)}" else ""
+    val showBtn = withButton && !closed && (lp.reserve > 0 || lp.plan == 0L)
+    Panel(ShapeC, PanelKind.DARK, modifier.press { loans.onEdit(l) }.graphicsLayer { alpha = if (done) 0.62f else 1f }, padding = 0.dp, highlight = true) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(34.dp).background(KassaColors.Raised), contentAlignment = Alignment.Center) {
+                Text(if (l.rate > 0) "债" else "借", style = KassaType.cjk(13).copy(color = KassaColors.Lime))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(l.name, style = KassaType.Body, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = color)) { append(st.uppercase()) }
+                        append(" · " + rateText(l.rate) + "\n" + meta)
+                    },
+                    style = KassaType.Small.copy(fontSize = KassaType.Label.fontSize, color = KassaColors.Grey),
+                )
+                Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).background(KassaColors.Raised)) {
+                    Box(Modifier.fillMaxWidth(p.toFloat()).height(4.dp).background(KassaColors.Lime))
+                }
+            }
+            if (lp.plan > 0) Text("−" + formatRub(lp.plan, symbol = false), style = KassaType.RowAmount, maxLines = 1, softWrap = false)
+            if (showBtn) MiniButton(if (l.rate > 0) "Внести" else "Вернуть") { loans.onPay(l) }
+        }
+    }
 }
 
 private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
@@ -412,6 +500,7 @@ private fun TxRow(t: Tx, s: SpendingState, modifier: Modifier, onEdit: (Tx) -> U
     val mark = when {
         t.ref == null -> ""
         t.ref?.kind == RefKind.GOAL -> "в цель"
+        t.ref?.kind == RefKind.LOAN -> "платёж по долгу"
         inc -> "получено по плану"
         else -> "по плану"
     }

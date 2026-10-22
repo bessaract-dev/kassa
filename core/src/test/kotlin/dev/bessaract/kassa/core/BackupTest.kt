@@ -9,6 +9,7 @@ import dev.bessaract.kassa.core.backup.mergePlan
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
 import dev.bessaract.kassa.core.model.Goal
+import dev.bessaract.kassa.core.model.Loan
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.RefKind
 import dev.bessaract.kassa.core.model.Tx
@@ -108,5 +109,31 @@ class BackupTest {
         val top = Tx("t9", 1, TxType.EXP, 700_00, "RUB", 700_00, "c_goal", "", "", "Я", "2026-10-20", "Китай", TxRef(RefKind.GOAL, "g1"))
         val p2 = mergePlan(d.copy(tx = tx + top), cats, listOf("Я", "Варя"), rec, tx.map { it.id }.toSet(), listOf(goals[0]))
         assertEquals(mapOf("g1" to 700_00L), p2.goalTopUps)
+    }
+
+    @Test
+    fun loansRoundTripAndMergeById() {
+        val loans = listOf(Loan("l1", "Кредит на машину", 450_000_00, 286_000_00, 9_800_00, 14.9, 26), Loan("l2", "Долг маме", 30_000_00, 21_000_00, 0, 0.0, 1))
+        val d = data.copy(loans = loans)
+        val back = (decodeBackup(encodeBackup(d, "2026-10-22T12:00:00Z")) as BackupParse.Ok).data
+        assertEquals(loans, back.loans)
+        val plan = mergePlan(d, cats, listOf("Я", "Варя"), rec, tx.map { it.id }.toSet(), loans = listOf(loans[0]))
+        assertEquals(listOf("l2"), plan.loans.map { it.id })
+        // 1 строка плана + 3 операции + 1 кредит уже есть
+        assertEquals(5, plan.skipped)
+        // новый платёж из копии по кредиту, что уже есть в телефоне, уменьшит его остаток на погашенную часть
+        val pay = Tx("t9", 1, TxType.EXP, 9_800_00, "RUB", 9_800_00, "c_loan", "", "", "Я", "2026-10-20", "Кредит", TxRef(RefKind.LOAN, "l1", 6_248_83))
+        val p2 = mergePlan(d.copy(tx = tx + pay), cats, listOf("Я", "Варя"), rec, tx.map { it.id }.toSet(), loans = listOf(loans[0]))
+        assertEquals(mapOf("l1" to 6_248_83L), p2.loanPayoffs)
+        // кредит удалили в телефоне и вернули из копии: платёж, сделанный после копии (его в файле нет), вычитается;
+        // платёж, что есть и в файле, — нет (остаток в копии его уже учёл)
+        val phone = listOf(Triple("after", "l2", 2_000_00L), Triple(tx[0].id, "l2", 500_00L))
+        val p3 = mergePlan(d, cats, listOf("Я", "Варя"), rec, tx.map { it.id }.toSet(), loans = listOf(loans[0]), phoneLoanPayments = phone)
+        assertEquals(mapOf("l2" to 2_000_00L), p3.loanPayoffs)
+        // кривые кредиты в файле: отрицательная ставка — без процентов, число месяца — в 1..31
+        val bad = """{"cfg":{"cats":[],"loans":[{"id":"x","name":"x","total":10,"balance":5,"pay":1,"rate":-5,"day":40}]},"months":{}}"""
+        val l = (decodeBackup(bad) as BackupParse.Ok).data.loans[0]
+        assertEquals(0.0, l.rate, 0.0)
+        assertEquals(31, l.day)
     }
 }

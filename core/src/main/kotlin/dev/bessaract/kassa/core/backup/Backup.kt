@@ -110,7 +110,9 @@ fun decodeBackup(text: String): BackupParse {
                     Recurring(str(it, "id"), catType(it["type"]), str(it, "name", ""), amount(it["amt"]), int(it["day"]).coerceIn(1, 31), str(it, "cat", ""), str(it, "acc", ""))
                 },
                 loans = list(cfg["loans"]) {
-                    Loan(str(it, "id"), str(it, "name"), kop(it["total"] ?: 0.0), kop(it["balance"]), kop(it["pay"]), (it["rate"] as? Double) ?: 0.0, int(it["day"] ?: 1.0))
+                    // суммы не меньше нуля, ставка 0..100 (кривая — без процентов), число месяца 1..31
+                    val rate = ((it["rate"] as? Double) ?: 0.0).takeIf { r -> r.isFinite() && r in 0.0..100.0 } ?: 0.0
+                    Loan(str(it, "id"), str(it, "name", ""), amount(it["total"] ?: 0.0), amount(it["balance"]), amount(it["pay"] ?: 0.0), rate, int(it["day"] ?: 1.0).coerceIn(1, 31))
                 },
                 goals = list(cfg["goals"]) {
                     // дата цели — только настоящая; кривая превращает цель в копилку, а не портит весь файл
@@ -166,8 +168,11 @@ data class MergePlan(
     val goals: List<Goal> = emptyList(),
     /** Сколько прибавить к накопленному целей, что уже есть в телефоне: новые взносы в них из копии. */
     val goalTopUps: Map<String, Long> = emptyMap(),
+    val loans: List<Loan> = emptyList(),
+    /** Сколько вычесть из остатка кредитов, что уже есть в телефоне: погашенное новыми платежами из копии. */
+    val loanPayoffs: Map<String, Long> = emptyMap(),
 ) {
-    val isEmpty: Boolean get() = cats.isEmpty() && persons.isEmpty() && rec.isEmpty() && tx.isEmpty() && goals.isEmpty()
+    val isEmpty: Boolean get() = cats.isEmpty() && persons.isEmpty() && rec.isEmpty() && tx.isEmpty() && goals.isEmpty() && loans.isEmpty()
 }
 
 /**
@@ -182,6 +187,9 @@ fun mergePlan(
     rec: List<Recurring>,
     txIds: Set<String>,
     goals: List<Goal> = emptyList(),
+    loans: List<Loan> = emptyList(),
+    /** Погашенное платежами в телефоне по кредиту (id операции → id кредита, princ): для кредитов, которых в телефоне уже нет. */
+    phoneLoanPayments: List<Triple<String, String, Long>> = emptyList(),
 ): MergePlan {
     val catMap = HashMap<String, String>()
     val newCats = ArrayList<Category>()
@@ -195,16 +203,30 @@ fun mergePlan(
     val goalIds = goals.mapTo(HashSet()) { it.id }
     // накопленное в цели (saved) берётся из файла как есть: взносы-операции его не пересчитывают
     val newGoals = data.goals.filter { it.id !in goalIds }.distinctBy { it.id }
+    val loanIds = loans.mapTo(HashSet()) { it.id }
+    val newLoans = data.loans.filter { it.id !in loanIds }.distinctBy { it.id }
     val newTx = data.tx.filter { it.id !in txIds }.distinctBy { it.id }.map { it.copy(cat = catMap[it.cat] ?: it.cat) }
     return MergePlan(
         cats = newCats,
         persons = data.persons.filter { it.isNotBlank() && it !in persons }.distinct(),
         rec = newRec,
         tx = newTx,
-        skipped = (data.rec.size - newRec.size) + (data.tx.size - newTx.size) + (data.goals.size - newGoals.size),
+        skipped = (data.rec.size - newRec.size) + (data.tx.size - newTx.size) + (data.goals.size - newGoals.size) +
+            (data.loans.size - newLoans.size),
         goals = newGoals,
         // цель из копии приходит со своим saved, где её взносы уже учтены; у цели из телефона — нет
         goalTopUps = newTx.filter { it.ref?.kind == RefKind.GOAL && it.ref.id in goalIds }
             .groupBy { it.ref!!.id }.mapValues { (_, l) -> l.sumOf { it.rub } },
+        loans = newLoans,
+        // так же с кредитами: у кредита из копии остаток уже уменьшен её платежами
+        loanPayoffs = run {
+            val fileTx = data.tx.mapTo(HashSet()) { it.id }
+            val newIds = newLoans.mapTo(HashSet()) { it.id }
+            // у кредита из телефона остаток не знает о платежах из копии; у удалённого и восстановленного из копии —
+            // о платежах, сделанных в телефоне после копии (они остались в истории)
+            val fromFile = newTx.filter { it.ref?.kind == RefKind.LOAN && it.ref.id in loanIds }.map { it.ref!!.id to (it.ref.princ ?: 0L) }
+            val fromPhone = phoneLoanPayments.filter { (txId, loanId, _) -> loanId in newIds && txId !in fileTx }.map { it.second to it.third }
+            (fromFile + fromPhone).groupBy({ it.first }, { it.second }).mapValues { (_, l) -> l.sum() }.filterValues { it > 0 }
+        },
     )
 }

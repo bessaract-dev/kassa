@@ -9,6 +9,7 @@ import dev.bessaract.kassa.core.calc.spending
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Defaults
 import dev.bessaract.kassa.core.model.Goal
+import dev.bessaract.kassa.core.model.Loan
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.SystemCategories
 import dev.bessaract.kassa.core.model.RefKind
@@ -66,6 +67,11 @@ class ScreenshotTest {
         Goal("china", "Путешествие в Китай", 90_000_00, 0, by = "2026-12-30"),
     )
 
+    private fun loans(on: Boolean) = if (!on) emptyList() else listOf(
+        Loan("car", "Кредит на машину", 450_000_00, 286_000_00, 9_800_00, 14.9, 26),
+        Loan("mom", "Долг маме", 30_000_00, 21_000_00, 0, 0.0, 1),
+    )
+
     private fun state(withTx: Boolean, withPlan: Boolean = false, overspend: Boolean = false): SpendingState {
         val list = if (!withTx) emptyList() else listOfNotNull(
             tx("a", today, 12, 40, 54000, "Продукты"),
@@ -81,6 +87,8 @@ class ScreenshotTest {
             tx("p4", today.withDayOfMonth(12), 10, 0, 90_000, "Связь и подписки", note = "Интернет", ref = TxRef(RefKind.REC, "net")),
             Tx("g5", today.minusDays(2).atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), TxType.EXP, 500_000, "RUB", 500_000,
                 SystemCategories.GOAL, "", "", "Я", today.minusDays(2).toString(), "Накопить 100к", TxRef(RefKind.GOAL, "g100")),
+            Tx("l5", today.minusDays(4).atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), TxType.EXP, 300_000, "RUB", 300_000,
+                SystemCategories.LOAN, "", "", "Я", today.minusDays(4).toString(), "Долг маме", TxRef(RefKind.LOAN, "mom", 300_000)),
         )
         val rec = if (withPlan) plan else emptyList()
         return SpendingState(
@@ -92,8 +100,9 @@ class ScreenshotTest {
             persons = Defaults.persons,
             rec = rec,
             goals = goals(withPlan),
+            loans = loans(withPlan),
             monthTx = list,
-            budget = budget(rec, emptyList(), goals(withPlan), list, today),
+            budget = budget(rec, loans(withPlan), goals(withPlan), list, today),
         )
     }
 
@@ -134,5 +143,9 @@ class ScreenshotTest {
         "settings-ready", state(true, withPlan = true), sheet = SETTINGS,
         backup = BackupUi.Ready(dev.bessaract.kassa.core.backup.MergePlan(emptyList(), emptyList(), plan.take(2), emptyList(), 15), 17, "22 октября, 12:12"),
     )
+    @Test fun sheetLoanNew() = shot("sheet-loan-new", state(true, withPlan = true), Tab.EXP, NEW_LOAN)
+    @Test fun sheetLoanEdit() = shot("sheet-loan-edit", state(true, withPlan = true), Tab.EXP, LOAN_PREFIX + "car")
+    @Test fun sheetLoanPay() = shot("sheet-loan-pay", state(true, withPlan = true), Tab.EXP, PAY_PREFIX + "car")
+    @Test fun sheetLoanTx() = shot("sheet-loan-tx", state(true, withPlan = true), Tab.HIST, "l5")
     @Test fun sheetPlanTx() = shot("sheet-plan-tx", state(true, withPlan = true), Tab.HIST, "p3")
 }

@@ -116,8 +116,12 @@ fun TxSheetContent(
         }
         if (locked) {
             Text(
-                if (original?.ref?.kind == RefKind.GOAL) "Взнос в цель «${original.note}». Его можно только удалить — накопленное уменьшится."
-                else "Операция по плану: «${original?.note}». Её можно только удалить — отметка в Плане снимется.",
+                when (original?.ref?.kind) {
+                    RefKind.GOAL -> "Взнос в цель «${original?.note}». Его можно только удалить — накопленное уменьшится."
+                    RefKind.LOAN -> "Платёж по «${original?.note}». Его можно только удалить — долг вернётся на " +
+                        "${dev.bessaract.kassa.core.formatRub(original?.ref?.princ ?: 0L, symbol = false)}."
+                    else -> "Операция по плану: «${original?.note}». Её можно только удалить — отметка в Плане снимется."
+                },
                 style = KassaType.Small.copy(fontSize = KassaType.Body.fontSize * 0.92f),
                 modifier = Modifier.padding(top = 12.dp),
             )

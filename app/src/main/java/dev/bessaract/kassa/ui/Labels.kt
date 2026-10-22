@@ -53,3 +53,20 @@ fun sysDate(d: LocalDate): String = d.format(sysFmt) + " // " + d.format(wdFmt).
 
 /** «Октябрь 2026». */
 fun monthTitle(d: LocalDate): String = d.format(monthFmt).replaceFirstChar { it.titlecase(ru) }
+
+private val monthShortFmt = DateTimeFormatter.ofPattern("LLL yyyy", ru)
+private val monthLongFmt = DateTimeFormatter.ofPattern("LLLL yyyy", ru)
+
+/** Прогноз закрытия кредита словами. short — для строки списка («до янв. 2029»), без графика — пусто. */
+fun loanForecastText(f: dev.bessaract.kassa.core.calc.LoanForecast, short: Boolean): String = when (f) {
+    dev.bessaract.kassa.core.calc.LoanForecast.Closed -> if (short) "" else "закрыт"
+    dev.bessaract.kassa.core.calc.LoanForecast.NoSchedule -> if (short) "" else "без графика"
+    dev.bessaract.kassa.core.calc.LoanForecast.NotCovering -> if (short) "не покрывает %" else "платёж не покрывает проценты"
+    dev.bessaract.kassa.core.calc.LoanForecast.TooLong -> "больше 50 лет"
+    is dev.bessaract.kassa.core.calc.LoanForecast.In ->
+        if (short) "до " + f.at.format(monthShortFmt) else "закроется " + f.at.format(monthLongFmt) + " (${f.months} мес.)"
+}
+
+/** Ставка по-русски: 14,9%; без процентов — «без %». */
+fun rateText(rate: Double): String =
+    if (rate <= 0) "без\u00A0%" else (if (rate % 1.0 == 0.0) rate.toLong().toString() else rate.toString().replace('.', ',')) + "%"

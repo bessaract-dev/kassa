@@ -20,6 +20,7 @@ import dev.bessaract.kassa.core.model.BASE_CURRENCY
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
 import dev.bessaract.kassa.core.model.Goal
+import dev.bessaract.kassa.core.model.Loan
 import dev.bessaract.kassa.core.model.SystemCategories
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.RefKind
@@ -64,6 +65,8 @@ data class SpendingState(
     val rec: List<Recurring> = emptyList(),
     /** Цели накоплений. */
     val goals: List<Goal> = emptyList(),
+    /** Кредиты и долги людям (долг без процентов — кредит со ставкой 0). */
+    val loans: List<Loan> = emptyList(),
     /** Операции текущего месяца (для статусов плана и поиска операции при правке). */
     val monthTx: List<Tx> = emptyList(),
     val budget: Budget,
@@ -96,7 +99,7 @@ sealed interface BackupUi {
     data class Saved(val count: Int) : BackupUi
     /** Файл прочитан: что добавится. when — когда сделана копия, по-человечески. */
     data class Ready(val plan: MergePlan, val total: Int, val whenText: String) : BackupUi
-    data class Added(val tx: Int, val rec: Int, val goals: Int = 0) : BackupUi
+    data class Added(val tx: Int, val rec: Int, val goals: Int = 0, val loans: Int = 0) : BackupUi
     data class Error(val message: String) : BackupUi
 }
 
@@ -107,6 +110,20 @@ data class GoalDraft(
     val target: Long,
     val saved: Long?,
     val by: LocalDate?,
+)
+
+/**
+ * Черновик кредита или долга. id = null — новый. balance = null — остаток в форме не меняли
+ * (тогда в базе остаётся текущий: платёж мог изменить его, пока форма открыта).
+ */
+data class LoanDraft(
+    val id: String?,
+    val name: String,
+    val total: Long,
+    val balance: Long?,
+    val pay: Long,
+    val rate: Double,
+    val day: Int,
 )
 
 /** Черновик строки плана. id = null — новая. */
@@ -132,9 +149,9 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         today.flatMapLatest { d -> repo.monthTx(monthKey(d)).map { d to it } },
         repo.categories,
         repo.persons,
-        combine(repo.recurring, repo.goals, ::Pair),
+        combine(repo.recurring, repo.goals, repo.loans, ::Triple),
         repo.txCount,
-    ) { (d, tx), cats, persons, (rec, goals), total ->
+    ) { (d, tx), cats, persons, (rec, goals, loans), total ->
         SpendingState(
             today = d,
             spending = spending(tx, d),
@@ -144,9 +161,9 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             persons = persons,
             rec = rec,
             goals = goals,
+            loans = loans,
             monthTx = tx,
-            // кредитов ещё нет — в обязательные входят план и взносы на цели с датой
-            budget = budget(rec, emptyList(), goals, tx, d),
+            budget = budget(rec, loans, goals, tx, d),
             txTotal = total,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -273,7 +290,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _backup.value = try {
                 repo.applyMerge(ready.plan)
-                BackupUi.Added(ready.plan.tx.size, ready.plan.rec.size, ready.plan.goals.size)
+                BackupUi.Added(ready.plan.tx.size, ready.plan.rec.size, ready.plan.goals.size, ready.plan.loans.size)
             } catch (e: Exception) {
                 BackupUi.Error("Не удалось добавить данные — ничего не изменилось.")
             }
@@ -320,6 +337,38 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteGoal(id: String) {
         viewModelScope.launch { repo.deleteGoal(id) }
+    }
+
+    fun saveLoan(d: LoanDraft) {
+        viewModelScope.launch {
+            val old = state.value?.loans?.find { it.id == d.id }
+            // кредит удалили, пока была открыта форма — не воскрешаем
+            if (d.id != null && old == null) return@launch
+            val balance = d.balance ?: old?.balance ?: d.total
+            val l = Loan(d.id ?: newId(), d.name.trim(), maxOf(d.total, balance), balance, d.pay, d.rate, d.day)
+            // остаток не правили — не пишем его: платёж мог успеть изменить его в базе
+            if (old != null && d.balance == null) repo.updateLoanInfo(l) else repo.saveLoan(l)
+        }
+    }
+
+    fun deleteLoan(id: String) {
+        viewModelScope.launch { repo.deleteLoan(id) }
+    }
+
+    /** Платёж по кредиту или возврат долга: расход в системной категории «Кредиты» со ссылкой (payLoan в kassa.html). */
+    fun payLoan(loanId: String, amt: Long, d: LocalDate) {
+        viewModelScope.launch {
+            val s = state.value ?: return@launch
+            val l = s.loans.find { it.id == loanId } ?: return@launch
+            repo.payLoan(
+                Tx(
+                    id = newId(), ts = System.currentTimeMillis(), t = TxType.EXP, amt = amt, cur = BASE_CURRENCY, rub = amt,
+                    cat = SystemCategories.LOAN, acc = "", to = "", who = s.persons.firstOrNull().orEmpty(),
+                    d = d.toString(), note = l.name, ref = TxRef(RefKind.LOAN, l.id, 0),
+                ),
+                l.id,
+            )
+        }
     }
 
     /** «Отложить»: расход в системной категории «Накопления» со ссылкой на цель (topGoal в kassa.html). */
