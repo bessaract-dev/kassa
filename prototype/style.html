@@ -244,6 +244,19 @@ body.phone-only .phone-wrap{position:static}
 .calib .card{margin:16px auto;border:2px dashed var(--lime);border-radius:3.2mm}
 .calib p{color:var(--grey);font-size:12px;max-width:420px;margin:0 auto 10px}
 
+/* Выделение заполненных строк (.op): 3 варианта на выбор, переключатель под телефоном */
+/* A «Планка»: отдельная лаймовая планка слева внутри строки + чуть приподнятый фон */
+body.rows-a .op.dark::before{background:#1B1E1F}
+body.rows-a .op.dark::after{content:"";position:absolute;left:4px;top:10px;bottom:10px;width:3px;background:var(--lime);z-index:1}
+body.rows-a .op.dark{padding-left:16px}
+/* B «Скобы»: лаймовые уголки-скобы по диагонали, как прицел */
+body.rows-b .op.dark::after{content:"";position:absolute;inset:4px;z-index:1;pointer-events:none;
+  background:linear-gradient(var(--lime),var(--lime)) left 10px top 0/14px 2px,linear-gradient(var(--lime),var(--lime)) left 0 top 10px/2px 14px,
+  linear-gradient(var(--lime),var(--lime)) right 10px bottom 0/14px 2px,linear-gradient(var(--lime),var(--lime)) right 0 bottom 10px/2px 14px;background-repeat:no-repeat}
+/* C «Подсветка»: рамка лайм 45% и мягкий лаймовый отсвет слева */
+body.rows-c .op.dark{background:#C8FF0073}
+body.rows-c .op.dark::before{background:linear-gradient(90deg,#C8FF0014,transparent 55%),var(--surface)}
+
 /* ===== правая колонка: спецификация ===== */
 .spec h2{font:800 calc(22px * var(--fs, 1)) var(--display);text-transform:uppercase;margin:36px 0 12px;display:flex;gap:12px;align-items:baseline}
 .spec h2:first-child{margin-top:0}
@@ -366,6 +379,7 @@ table.motion th{color:var(--grey);font-weight:500}
       <button class="small-btn" id="fillBtn">Заполнить примером</button>
       <button class="small-btn" id="clearBtn">Очистить данные</button>
       <button class="small-btn" id="glitchNow">Глитч сейчас</button>
+      <span class="seg-ctl" style="margin-left:6px"><span class="d" style="min-height:0;margin:0 6px 0 0;color:var(--grey);font-size:11px">Плашки:</span><button class="small-btn" data-rows="a">A планка</button><button class="small-btn" data-rows="b">B скобы</button><button class="small-btn" data-rows="c">C подсветка</button></span>
     </div>
     <p class="phone-note">Данные живут только в этом браузере. «Очистить» — начать с пустого.</p>
   </div>
@@ -969,6 +983,17 @@ table.motion th{color:var(--grey);font-weight:500}
   };
   $('#clearBtn').onclick = () => { S = defaults(); save(); render(true); };
   /* ---------- вид страницы, размер телефона, калибровка (запоминается в браузере) ---------- */
+  // вариант выделения заполненных строк (A/B/C), запоминается в браузере
+  function setRows(v) {
+    document.body.classList.remove('rows-a', 'rows-b', 'rows-c'); document.body.classList.add('rows-' + v);
+    $$('[data-rows]').forEach(b => b.classList.toggle('on', b.dataset.rows === v));
+    try { localStorage.setItem('kassa.rows', v); } catch (e) {}
+  }
+  let savedRows = 'a';
+  try { savedRows = localStorage.getItem('kassa.rows') || 'a'; } catch (e) {}
+  setRows(savedRows);
+  $$('[data-rows]').forEach(b => b.onclick = () => setRows(b.dataset.rows));
+
   function setView(v) {
     document.body.classList.toggle('phone-only', v === 'phone');
     $$('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
