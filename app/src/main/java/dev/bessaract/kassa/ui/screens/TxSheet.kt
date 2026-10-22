@@ -33,7 +33,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.bessaract.kassa.core.amountInput
+import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Tx
+import dev.bessaract.kassa.core.model.TxType
 import dev.bessaract.kassa.core.parseAmount
 import dev.bessaract.kassa.ui.SpendingState
 import dev.bessaract.kassa.ui.TxDraft
@@ -42,6 +44,7 @@ import dev.bessaract.kassa.ui.catShort
 import dev.bessaract.kassa.ui.components.Chip
 import dev.bessaract.kassa.ui.components.GhostButton
 import dev.bessaract.kassa.ui.components.PrimaryButton
+import dev.bessaract.kassa.ui.components.Segmented
 import dev.bessaract.kassa.ui.theme.distinctButtonVariants
 import dev.bessaract.kassa.ui.components.press
 import dev.bessaract.kassa.ui.formDay
@@ -50,8 +53,9 @@ import dev.bessaract.kassa.ui.theme.KassaType
 import java.time.LocalDate
 
 /**
- * Содержимое нижнего листа «Новая трата» / «Правка траты».
- * original = null — новая трата: сразу фокус на сумме, чтобы открылась клавиатура.
+ * Содержимое нижнего листа «Новая трата / доход» и правки операции.
+ * original = null — новая операция: сразу фокус на сумме, чтобы открылась клавиатура; сверху переключатель Трата / Доход.
+ * Операцию по плану (ref) можно только удалить — как в kassa.html: отметка в Плане снимется.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -64,6 +68,9 @@ fun TxSheetContent(
 ) {
     val key = original?.id ?: "new"
     var amount by rememberSaveable(key) { mutableStateOf(original?.let { amountInput(it.amt) } ?: "") }
+    var type by rememberSaveable(key) { mutableStateOf(original?.t ?: TxType.EXP) }
+    val inc = type == TxType.INC
+    val cats = s.cats(if (inc) CatType.INC else CatType.EXP)
     var cat by rememberSaveable(key) { mutableStateOf(original?.cat ?: s.expCats.firstOrNull()?.id.orEmpty()) }
     var customCat by rememberSaveable(key) { mutableStateOf("") }
     var who by rememberSaveable(key) { mutableStateOf(original?.who ?: s.persons.firstOrNull().orEmpty()) }
@@ -79,16 +86,37 @@ fun TxSheetContent(
         when {
             amt <= 0 -> err = "Введи сумму больше нуля"
             cat.isEmpty() && customCat.isBlank() -> err = "Выбери или впиши категорию"
-            else -> onSave(TxDraft(original?.id, amt, if (customCat.isBlank()) cat else "", customCat.trim(), who, date, note))
+            else -> onSave(TxDraft(original?.id, type, amt, if (customCat.isBlank()) cat else "", customCat.trim(), who, date, note))
         }
     }
 
     LaunchedEffect(key) { if (original == null) focus.requestFocus() }
+    val locked = original?.ref != null
 
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        val title = when {
+            original == null -> if (inc) "Новый доход" else "Новая трата"
+            else -> if (inc) "Правка дохода" else "Правка траты"
+        }
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
-            Text((if (original == null) "Новая трата" else "Правка траты").uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text("支出", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
+            Text(title.uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
+            Text(if (inc) "収入" else "支出", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
+        }
+        if (original == null) {
+            Segmented(listOf(TxType.EXP to "Трата", TxType.INC to "Доход"), type, Modifier.padding(top = 12.dp)) { t ->
+                if (t != type) {
+                    type = t
+                    cat = s.cats(if (t == TxType.INC) CatType.INC else CatType.EXP).firstOrNull()?.id.orEmpty()
+                    customCat = ""; err = ""
+                }
+            }
+        }
+        if (locked) {
+            Text(
+                "Операция по плану: «${original?.note}». Её можно только удалить — отметка в Плане снимется.",
+                style = KassaType.Small.copy(fontSize = KassaType.Body.fontSize * 0.92f),
+                modifier = Modifier.padding(top = 12.dp),
+            )
         }
 
         // Сумма: крупно, с лаймовым курсором
@@ -97,6 +125,7 @@ fun TxSheetContent(
                 if (amount.isEmpty()) Text("0", style = KassaType.Big.copy(fontSize = KassaType.Big.fontSize * 0.89f, color = KassaColors.Line))
                 BasicTextField(
                     value = amount,
+                    enabled = !locked,
                     onValueChange = { v -> amount = v.filter { it.isDigit() || it == ',' || it == '.' || it == ' ' }.take(12); err = "" },
                     textStyle = KassaType.Big.copy(fontSize = KassaType.Big.fontSize * 0.89f, color = KassaColors.Text),
                     cursorBrush = SolidColor(KassaColors.Lime),
@@ -111,11 +140,12 @@ fun TxSheetContent(
         Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp).height(2.dp).background(KassaColors.Line))
         if (err.isNotEmpty()) Text(err, style = KassaType.Small.copy(color = KassaColors.Bad), modifier = Modifier.padding(bottom = 8.dp))
 
+        if (!locked) {
         SheetLabel("Категория")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            s.expCats.forEach { c -> Chip("${catIcon(c)} ${catShort(c)}", c.id == cat) { cat = c.id; customCat = ""; err = "" } }
+            cats.forEach { c -> Chip("${catIcon(c)} ${catShort(c)}", c.id == cat) { cat = c.id; customCat = ""; err = "" } }
             // Категория, которую уже удалили или сделали системной, остаётся видна при правке.
-            if (cat.isNotEmpty() && s.expCats.none { it.id == cat }) {
+            if (cat.isNotEmpty() && cats.none { it.id == cat }) {
                 Chip("${catIcon(s.allCats[cat])} ${s.allCats[cat]?.name ?: "Без категории"}", true) {}
             }
         }
@@ -129,9 +159,12 @@ fun TxSheetContent(
             modifier = Modifier.padding(top = 8.dp),
         )
 
-        SheetLabel("На кого")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            s.persons.forEach { p -> Chip(p, p == who) { who = p } }
+        // «На кого» — только у трат
+        if (!inc) {
+            SheetLabel("На кого")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                s.persons.forEach { p -> Chip(p, p == who) { who = p } }
+            }
         }
 
         SheetLabel("Дата")
@@ -143,22 +176,24 @@ fun TxSheetContent(
                 modifier = Modifier.width(120.dp).press { day = s.today.toString() },
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
-            // В будущее не листаем: трата — это то, что уже случилось.
+            // В будущее не листаем: операция — это то, что уже случилось.
             if (date < s.today) Chip("›", false) { day = date.plusDays(1).toString() }
         }
 
         SheetLabel("Заметка")
         SheetField(note, "необязательно", onChange = { note = it.take(200) }, onDone = { save() })
+        }
 
         Spacer(Modifier.height(16.dp))
         // Кнопки одного листа — разные варианты формы (ключи — как текст кнопки в прототипе).
-        val v = remember(original != null) {
-            distinctButtonVariants(listOfNotNull("Записать⇲⇲", if (original != null) "Удалить削除" else null, "Отмена取消"))
+        val keys = listOfNotNull(if (locked) null else "Записать⇲⇲", if (original != null) "Удалить削除" else null, "Отмена取消")
+        val v = remember(keys) { distinctButtonVariants(keys) }
+        if (!locked) {
+            PrimaryButton("Записать", variant = v.first()) { save() }
+            Spacer(Modifier.height(8.dp))
         }
-        PrimaryButton("Записать", variant = v.first()) { save() }
-        Spacer(Modifier.height(8.dp))
         if (original != null) {
-            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "削除", color = KassaColors.Bad, variant = v[1]) {
+            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "削除", color = KassaColors.Bad, variant = v[keys.indexOf("Удалить削除")]) {
                 if (confirmDelete) onDelete(original.id) else confirmDelete = true
             }
             Spacer(Modifier.height(8.dp))
@@ -168,13 +203,20 @@ fun TxSheetContent(
 }
 
 @Composable
-private fun SheetLabel(text: String) {
+internal fun SheetLabel(text: String) {
     Text(text.uppercase(), style = KassaType.Label.copy(color = KassaColors.Grey), modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
 }
 
 /** Однострочное поле на утопленном фоне, с лаймовым курсором. Активное (непустое) — с лаймовой чертой слева. */
 @Composable
-private fun SheetField(value: String, placeholder: String, onChange: (String) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier) {
+internal fun SheetField(
+    value: String,
+    placeholder: String,
+    onChange: (String) -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Text,
+) {
     Row(modifier.fillMaxWidth().background(KassaColors.Raised)) {
         if (value.isNotEmpty()) Box(Modifier.width(2.dp).height(37.dp).background(KassaColors.Lime))
         Box(Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 9.dp)) {
@@ -185,7 +227,7 @@ private fun SheetField(value: String, placeholder: String, onChange: (String) ->
                 textStyle = KassaType.Body,
                 cursorBrush = SolidColor(KassaColors.Lime),
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, keyboardType = keyboardType, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onDone() }),
                 modifier = Modifier.fillMaxWidth(),
             )

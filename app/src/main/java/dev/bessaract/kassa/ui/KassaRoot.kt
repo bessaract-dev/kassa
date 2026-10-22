@@ -59,6 +59,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.bessaract.kassa.core.calc.daysLeft
+import dev.bessaract.kassa.core.model.CatType
+import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.Tx
 import dev.bessaract.kassa.ui.components.Arrows
 import dev.bessaract.kassa.ui.components.GlitchLoop
@@ -74,6 +76,9 @@ import dev.bessaract.kassa.ui.components.press
 import dev.bessaract.kassa.ui.components.reveal
 import dev.bessaract.kassa.ui.screens.HistoryScreen
 import dev.bessaract.kassa.ui.screens.PlaceholderScreen
+import dev.bessaract.kassa.ui.screens.PlanActions
+import dev.bessaract.kassa.ui.screens.PlanScreen
+import dev.bessaract.kassa.ui.screens.RecSheetContent
 import dev.bessaract.kassa.ui.screens.TodayScreen
 import dev.bessaract.kassa.ui.screens.TxSheetContent
 import dev.bessaract.kassa.ui.theme.KassaColors
@@ -92,21 +97,54 @@ enum class Tab(val label: String, val cjk: String) {
     DEBT("Долги", "負債"),
 }
 
-/** Что открыто в нижнем листе: NEW_TX — новая трата, иначе id операции для правки. */
+/**
+ * Что открыто в нижнем листе (строка, чтобы пережить поворот экрана):
+ * NEW_TX — новая операция, NEW_REC_EXP / NEW_REC_INC — новая строка плана,
+ * REC_PREFIX + id — правка строки плана, иначе id операции для правки.
+ */
 const val NEW_TX = "new"
+const val NEW_REC_EXP = "rec+exp"
+const val NEW_REC_INC = "rec+inc"
+const val REC_PREFIX = "rec:"
+
+/** Обработчики действий интерфейса — всё, что меняет данные. */
+class KassaActions(
+    val onSave: (TxDraft, Tx?) -> Unit = { _, _ -> },
+    val onDelete: (String) -> Unit = {},
+    val onPostRec: (Recurring) -> Unit = {},
+    val onSaveRec: (RecDraft) -> Unit = {},
+    val onDeleteRec: (String) -> Unit = {},
+)
 
 @Composable
 fun KassaRoot(vm: SpendingViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
-    KassaContent(state, onSave = vm::save, onDelete = vm::delete)
+    val actions = remember(vm) { KassaActions(vm::save, vm::delete, vm::postRec, vm::saveRec, vm::deleteRec) }
+    KassaContent(state, actions)
+}
+
+/** Что показать в листе: операция или строка плана; null — открывать нечего (удалили или ушла в другой месяц). */
+private sealed interface SheetTarget {
+    data class TxForm(val tx: Tx?) : SheetTarget
+    data class RecForm(val rec: Recurring?, val type: CatType) : SheetTarget
+}
+
+private fun resolveSheet(sheet: String?, s: SpendingState?): SheetTarget? {
+    if (sheet == null || s == null) return null
+    return when {
+        sheet == NEW_TX -> SheetTarget.TxForm(null)
+        sheet == NEW_REC_EXP -> SheetTarget.RecForm(null, CatType.EXP)
+        sheet == NEW_REC_INC -> SheetTarget.RecForm(null, CatType.INC)
+        sheet.startsWith(REC_PREFIX) -> s.rec.find { it.id == sheet.removePrefix(REC_PREFIX) }?.let { SheetTarget.RecForm(it, it.type) }
+        else -> s.monthTx.find { it.id == sheet }?.let { SheetTarget.TxForm(it) }
+    }
 }
 
 /** Весь интерфейс без ViewModel: так его можно отрисовать в тесте со скриншотами. */
 @Composable
 fun KassaContent(
     s: SpendingState?,
-    onSave: (TxDraft, Tx?) -> Unit,
-    onDelete: (String) -> Unit,
+    actions: KassaActions,
     initialTab: Tab = Tab.HOME,
     initialSheet: String? = null,
 ) {
@@ -114,12 +152,16 @@ fun KassaContent(
     var sheet by rememberSaveable { mutableStateOf(initialSheet) }
     val focus = LocalFocusManager.current
 
-    // Операция для правки ищется в текущем месяце; если её удалили или она ушла в другой месяц — лист закрывается.
-    val editing: Tx? = sheet?.takeIf { it != NEW_TX }?.let { id -> s?.spending?.byDay?.flatMap { it.tx }?.find { it.id == id } }
-    val sheetOpen = sheet != null && s != null && (sheet == NEW_TX || editing != null)
+    // Операция или строка плана ищется в текущих данных; если её удалили или она ушла в другой месяц — лист закрывается.
+    val target = resolveSheet(sheet, s)
+    val sheetOpen = target != null
     fun closeSheet() { focus.clearFocus(); sheet = null }
+    // Пока лист уезжает (360 мс), его кнопки ещё нажимаются: второе «Записать» не должно создать дубль.
+    fun submit(action: () -> Unit) { if (sheet != null) { action(); closeSheet() } }
 
     BackHandler(enabled = sheetOpen) { closeSheet() }
+
+    val plan = remember(actions) { PlanActions(onEdit = { sheet = REC_PREFIX + it.id }, onPost = actions.onPostRec) }
 
     val motion = rememberMotionEnabled()
     val glitch = remember { GlitchState() }
@@ -143,10 +185,10 @@ fun KassaContent(
                     // key: при смене вкладки панели заново «вытираются» по очереди.
                     androidx.compose.runtime.key(tab) {
                         when (tab) {
-                            Tab.HOME -> TodayScreen(s) { sheet = it.id }
+                            Tab.HOME -> TodayScreen(s, onEdit = { sheet = it.id }, plan = plan, onOpenPlan = { tab = Tab.PLAN })
                             Tab.HIST -> HistoryScreen(s) { sheet = it.id }
-                            Tab.PLAN -> PlaceholderScreen("Постоянные доходы и расходы, лимит на день. Появится в следующих версиях.")
-                            Tab.DEBT -> PlaceholderScreen("Кредиты с прогнозом закрытия и цели накоплений. Появится в следующих версиях.")
+                            Tab.PLAN -> PlanScreen(s, plan) { type -> sheet = if (type == CatType.INC) NEW_REC_INC else NEW_REC_EXP }
+                            Tab.DEBT -> PlaceholderScreen("Кредиты и долги с графиком платежей и процентами — версия 0.6. Накопления и цели — 0.7.")
                         }
                     }
                 }
@@ -178,7 +220,7 @@ fun KassaContent(
         ) {
             if (s != null) {
                 // Запоминаем, что открыли: пока лист уезжает, sheet уже null, и форма не должна превратиться в «новую».
-                val opened = remember { editing }
+                val opened = remember { target }
                 val line = remember { Animatable(0f) }
                 LaunchedEffect(Unit) {
                     kotlinx.coroutines.delay(Motion.SLOW + 120L)
@@ -199,13 +241,24 @@ fun KassaContent(
                             .navigationBarsPadding()
                             .padding(start = 16.dp, end = 16.dp, top = 22.dp + SHEET_NOTCH_DP.dp, bottom = 22.dp),
                     ) {
-                        TxSheetContent(
-                            s = s,
-                            original = opened,
-                            onSave = { d -> onSave(d, opened); closeSheet() },
-                            onDelete = { id -> onDelete(id); closeSheet() },
-                            onCancel = { closeSheet() },
-                        )
+                        when (opened) {
+                            is SheetTarget.TxForm -> TxSheetContent(
+                                s = s,
+                                original = opened.tx,
+                                onSave = { d -> submit { actions.onSave(d, opened.tx) } },
+                                onDelete = { id -> submit { actions.onDelete(id) } },
+                                onCancel = { closeSheet() },
+                            )
+                            is SheetTarget.RecForm -> RecSheetContent(
+                                s = s,
+                                original = opened.rec,
+                                type = opened.type,
+                                onSave = { d -> submit { actions.onSaveRec(d) } },
+                                onDelete = { id -> submit { actions.onDeleteRec(id) } },
+                                onCancel = { closeSheet() },
+                            )
+                            null -> {}
+                        }
                     }
                 }
             }
@@ -274,7 +327,7 @@ private fun BottomNav(current: Tab, onSelect: (Tab) -> Unit, onAdd: () -> Unit) 
                         .press(onClick = onAdd)
                         .clip(ShapeFab)
                         .background(KassaColors.Lime)
-                        .semantics { contentDescription = "Добавить трату" },
+                        .semantics { contentDescription = "Добавить трату или доход" },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("+", style = KassaType.Body.copy(fontFamily = Tektur, fontSize = 34.sp, lineHeight = 34.sp, color = KassaColors.Ink))

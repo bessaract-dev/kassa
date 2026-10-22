@@ -18,26 +18,32 @@ data class Spending(
     val today: Long,
     /** Потрачено за месяц (b.exp в kassa.html — все расходы месяца), копейки. */
     val month: Long,
-    /** Траты сегодня: новые сверху (sort по ts, как в vHome). */
+    /** Доходы за месяц (все, включая полученные по плану), копейки. */
+    val monthInc: Long,
+    /** Операции сегодня (траты и доходы): новые сверху (sort по ts, как в vHome). */
     val todayTx: List<Tx>,
-    /** Траты месяца по дням: дни от новых к старым, внутри дня новые сверху. */
+    /** Операции месяца по дням: дни от новых к старым, внутри дня новые сверху. */
     val byDay: List<DayGroup>,
 )
 
+/** total — только траты дня. */
 data class DayGroup(val date: LocalDate, val total: Long, val tx: List<Tx>)
 
-/** Сводка трат за месяц, в котором лежит today. tx — операции любого периода, лишние отбрасываются. */
+/** Сводка операций за месяц, в котором лежит today. tx — операции любого периода, лишние отбрасываются. */
 fun spending(tx: List<Tx>, today: LocalDate): Spending {
     val month = monthKey(today)
     val td = today.toString()
-    val exp = tx.filter { it.t == TxType.EXP && it.d.startsWith(month) }
-    val todayTx = exp.filter { it.d == td }.sortedByDescending { it.ts }
-    val byDay = exp.groupBy { it.d }
+    // переводов между счетами пока нет; в списках — траты и доходы
+    val ops = tx.filter { (it.t == TxType.EXP || it.t == TxType.INC) && it.d.startsWith(month) }
+    val exp = ops.filter { it.t == TxType.EXP }
+    val todayTx = ops.filter { it.d == td }.sortedByDescending { it.ts }
+    val byDay = ops.groupBy { it.d }
         .toSortedMap(reverseOrder())
-        .map { (d, list) -> DayGroup(LocalDate.parse(d), list.sumOf { it.rub }, list.sortedByDescending { it.ts }) }
+        .map { (d, list) -> DayGroup(LocalDate.parse(d), list.filter { it.t == TxType.EXP }.sumOf { it.rub }, list.sortedByDescending { it.ts }) }
     return Spending(
-        today = todayTx.sumOf { it.rub },
+        today = exp.filter { it.d == td }.sumOf { it.rub },
         month = exp.sumOf { it.rub },
+        monthInc = ops.filter { it.t == TxType.INC }.sumOf { it.rub },
         todayTx = todayTx,
         byDay = byDay,
     )

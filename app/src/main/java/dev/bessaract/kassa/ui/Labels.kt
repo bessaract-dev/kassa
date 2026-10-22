@@ -14,14 +14,17 @@ private val catIcons = mapOf(
     "Продукты" to "食", "Кафе и рестораны" to "茶", "Транспорт" to "車", "Дом" to "家",
     "Развлечения" to "楽", "Связь и подписки" to "信", "Здоровье" to "医", "Одежда" to "服",
     "Дети" to "子", "Подарки" to "贈", "Прочее" to "他", "Кредиты" to "債", "Накопления" to "貯",
+    "Зарплата" to "給", "Подработка" to "副", "Прочий доход" to "入",
 )
 
-fun catIcon(cat: Category?): String = cat?.let { catIcons[it.name] } ?: "支"
+fun catIcon(cat: Category?): String =
+    cat?.let { catIcons[it.name] ?: if (it.type == dev.bessaract.kassa.core.model.CatType.INC) "入" else null } ?: "支"
 
 /** Короткое название для чипа: «Кафе и рестораны» → «Кафе». */
 fun catShort(cat: Category): String = when (cat.name) {
     "Кафе и рестораны" -> "Кафе"
     "Связь и подписки" -> "Связь"
+    "Прочий доход" -> "Прочее"
     else -> cat.name
 }
 

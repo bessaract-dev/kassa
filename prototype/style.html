@@ -430,7 +430,8 @@ table.motion th{color:var(--grey);font-weight:500}
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const uid = () => Math.random().toString(36).slice(2, 10);
   const sum = (a, f) => a.reduce((s, x) => s + (+f(x) || 0), 0);
-  const fmtN = n => { const r = Math.round(n); return (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('ru-RU').replace(/\s/g, ' '); };
+  // как formatRub: сначала до копейки, потом до рубля, половина — от нуля
+  const fmtN = n => { const k = Math.round(n * 100) / 100, r = Math.sign(k) * Math.round(Math.abs(k)); return (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('ru-RU').replace(/\s/g, ' '); };
   const fmt = n => fmtN(n) + ' ₽';
   // как parseAmount в приложении: самый длинный числовой префикс, запятая = точка
   const parseAmt = s => { const m = String(s).replace(/\s/g, '').replace(',', '.').match(/^[+-]?(\d+\.?\d*|\.\d+)/); return m ? Math.round(parseFloat(m[1]) * 100) / 100 : 0; };
@@ -569,7 +570,7 @@ table.motion th{color:var(--grey);font-weight:500}
     h += opsH('支払', 'Обязательные платежи', `${paidN}/${exp.length} оплачено`);
     h += exp.map(r => recRow(r, true)).join('');
     h += `<button class="add-row press${rv()}" data-act="newRec" data-type="exp"><b>+</b>Добавить платёж (аренда, связь…)</button>`;
-    h += `<p class="info${rv()}">«Оплатил» / «Получил» записывает операцию на сегодня с суммой из плана. Сумму и дату потом можно поправить в Истории. Отметки обнуляются с новым месяцем.</p>`;
+    h += `<p class="info${rv()}">«Оплатил» / «Получил» записывает операцию на сегодня с суммой из плана. Ошибся — удали её в Истории, отметка снимется. Отметки обнуляются с новым месяцем.</p>`;
     return h;
   }
   const vDebt = () => `<div class="panel dark shape-c${rv()}" style="padding:16px">${lbl('В разработке', '工事中')}<p style="margin-top:10px">Кредиты и долги с графиком и процентами — версия 0.6. Накопления и цели — 0.7.</p></div>`;

@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.bessaract.kassa.ui.theme.KassaColors
 import dev.bessaract.kassa.ui.theme.KassaType
 import dev.bessaract.kassa.ui.theme.Motion
@@ -289,26 +291,95 @@ fun Chip(text: String, on: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** Строка операции (.op): иконка-иероглиф, название и подробности, сумма. */
+/**
+ * Строка операции или плана (.op): иконка-иероглиф, название и подробности, сумма.
+ * [positive] — доход: иконка на лайме, сумма лаймом. [meta] можно раскрасить (статус плана) через [metaColor].
+ * [dimmed] — проведённая строка плана, приглушена. [trailing] — кнопка справа («Оплатил»).
+ */
 @Composable
-fun OpRow(icon: String, title: String, meta: String, amount: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Panel(ShapeC, PanelKind.DARK, modifier.press(onClick = onClick), padding = 0.dp) {
+fun OpRow(
+    icon: String,
+    title: String,
+    meta: String,
+    amount: String,
+    modifier: Modifier = Modifier,
+    positive: Boolean = false,
+    metaColor: Color = KassaColors.Grey,
+    dimmed: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    Panel(ShapeC, PanelKind.DARK, modifier.press(onClick = onClick).graphicsLayer { alpha = if (dimmed) 0.62f else 1f }, padding = 0.dp) {
         Row(
             Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Box(Modifier.size(34.dp).background(KassaColors.Raised), contentAlignment = Alignment.Center) {
-                Text(icon, style = KassaType.cjk(13).copy(color = KassaColors.Lime))
+            Box(Modifier.size(34.dp).background(if (positive) KassaColors.Lime else KassaColors.Raised), contentAlignment = Alignment.Center) {
+                Text(icon, style = KassaType.cjk(13).copy(color = if (positive) KassaColors.Ink else KassaColors.Lime))
             }
             Column(Modifier.weight(1f)) {
-                Text(title, style = KassaType.Body, maxLines = 1)
-                if (meta.isNotEmpty()) Text(meta, style = KassaType.Small.copy(fontSize = KassaType.Label.fontSize), maxLines = 1)
+                Text(title, style = KassaType.Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (meta.isNotEmpty()) Text(
+                    meta,
+                    style = KassaType.Small.copy(fontSize = KassaType.Label.fontSize, color = metaColor),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
-            Text(amount, style = KassaType.RowAmount)
+            Text(amount, style = KassaType.RowAmount.copy(color = if (positive) KassaColors.Lime else KassaColors.Text), maxLines = 1, softWrap = false)
+            trailing?.invoke()
         }
     }
 }
+
+/** Маленькая лаймовая кнопка в строке (.mini): «Оплатил» / «Получил». */
+@Composable
+fun MiniButton(text: String, onClick: () -> Unit) {
+    Text(
+        text.uppercase(),
+        style = KassaType.Button.copy(fontSize = 11.sp, color = KassaColors.Ink),
+        maxLines = 1, softWrap = false,
+        modifier = Modifier.press(onClick = onClick).clip(ShapeChip).background(KassaColors.Lime).padding(horizontal = 10.dp, vertical = 8.dp),
+    )
+}
+
+/** Строка «+ Добавить …» с пунктирной рамкой (.add-row). */
+@Composable
+fun AddRow(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier.fillMaxWidth().press(onClick = onClick).drawBehind {
+            val w = 1.dp.toPx()
+            drawRect(
+                KassaColors.Line, topLeft = Offset(w / 2, w / 2), size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w),
+                style = Stroke(w, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))),
+            )
+        }.padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("+", style = KassaType.RowAmount.copy(fontSize = 18.sp, color = KassaColors.Lime))
+        Text(text, style = KassaType.Small.copy(fontSize = 12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Переключатель из двух-трёх вариантов (.seg): «Трата / Доход». */
+@Composable
+fun <T> Segmented(options: List<Pair<T, String>>, selected: T, modifier: Modifier = Modifier, onSelect: (T) -> Unit) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.forEach { (v, label) ->
+            val on = v == selected
+            val bg by animateColorAsState(if (on) KassaColors.Lime else KassaColors.Raised, tween(Motion.FAST), label = "seg")
+            Box(
+                Modifier.weight(1f).press { onSelect(v) }.clip(ShapeSeg).background(bg).padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label.uppercase(), style = KassaType.Button.copy(fontSize = 13.sp, color = if (on) KassaColors.Ink else KassaColors.Grey))
+            }
+        }
+    }
+}
+
+private val ShapeSeg = dev.bessaract.kassa.ui.theme.diagonalCut(8)
 
 /** Пустой список: тусклый иероглиф и подсказка. */
 @Composable

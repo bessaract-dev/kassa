@@ -15,7 +15,7 @@ class SpendingTest {
     private val today = LocalDate.of(2026, 10, 21)
 
     @Test
-    fun sumsTodayAndMonthOnlyExpenses() {
+    fun sumsOnlyExpensesButListsIncomes() {
         val list = listOf(
             tx("a", "2026-10-21", 54000, ts = 2),
             tx("b", "2026-10-21", 22000, ts = 5),
@@ -27,7 +27,8 @@ class SpendingTest {
         val s = spending(list, today)
         assertEquals(76000L, s.today)
         assertEquals(176000L, s.month)
-        assertEquals(listOf("b", "a"), s.todayTx.map { it.id })
+        assertEquals(15000L, s.monthInc)
+        assertEquals(listOf("b", "a", "inc"), s.todayTx.map { it.id })
         assertEquals(listOf("2026-10-21", "2026-10-03"), s.byDay.map { it.date.toString() })
         assertEquals(76000L, s.byDay[0].total)
     }

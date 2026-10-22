@@ -47,4 +47,16 @@ interface KassaDao {
 
     @Query("DELETE FROM tx WHERE id = :id")
     suspend fun deleteTx(id: String)
+
+    @Upsert
+    suspend fun upsertRecurring(rec: RecurringEntity)
+
+    @Query("SELECT position FROM recurring WHERE id = :id")
+    suspend fun recurringPosition(id: String): Int?
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM recurring")
+    suspend fun maxRecurringPosition(): Int
+
+    @Query("DELETE FROM recurring WHERE id = :id")
+    suspend fun deleteRecurring(id: String)
 }
