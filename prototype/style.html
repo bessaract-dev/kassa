@@ -138,10 +138,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .hud-wrap.glass>.rail path{stroke-opacity:.85}
 .hud-wrap>svg.gl{position:absolute;pointer-events:none;overflow:visible;color:var(--hud-c);transition:color var(--t-base)}
 @media (prefers-reduced-motion:reduce){.hud-wrap.glass{transition:none}}
-/* 2026-10-22: небольшое скругление углов у всех остальных фигур (строки, кнопки, «+», чипы, куски).
-   Скругление делает JS (roundShapes): переводит clip-path в SVG-маску; рамки на ::before получают внутреннюю маску. */
-.rnd::before{-webkit-mask:var(--rmask-in) 0 0/100% 100% no-repeat;mask:var(--rmask-in) 0 0/100% 100% no-repeat}
-.rnd.dark::before,.rnd.btn.ghost::before{clip-path:none}
 
 .lbl{display:flex;justify-content:space-between;align-items:center;font-size:calc(10px * var(--fs, 1));letter-spacing:.12em;text-transform:uppercase;font-weight:600}
 .lbl .cjk{font-size:calc(13px * var(--fs, 1));letter-spacing:.05em}
@@ -208,8 +204,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .sheet h3 .cjk{font-size:calc(14px * var(--fs, 1));color:var(--lime)}
 /* 2026-10-22: кнопки «Отмена» убраны (легко промахнуться и потерять ввод) — закрытие крестиком в заголовке */
 .sheet h3 .h3r{display:flex;align-items:center;gap:12px}
-.sh-x{width:36px;height:36px;display:grid;place-items:center;background:var(--raised);color:var(--grey);font:400 calc(16px * var(--fs, 1))/1 var(--mono);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
-.sh-x:hover{color:var(--text)}
+.sh-x{width:44px;height:44px;margin:-10px -10px -10px 0;display:grid;place-items:center;background:none;color:var(--text);font:400 calc(20px * var(--fs, 1))/1 var(--mono)}
+.sh-x:hover{color:var(--lime)}
 .amount{font:800 calc(48px * var(--fs, 1)) var(--display);margin:14px 0 10px;border-bottom:2px solid var(--line);padding-bottom:6px;display:flex;align-items:center}
 .amount .caret{width:3px;height:40px;background:var(--lime);margin-left:4px;animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
@@ -720,7 +716,7 @@ table.motion th{color:var(--grey);font-weight:500}
     const a = w.classList.contains('hud-a'), W = el.offsetWidth, H = el.offsetHeight;
     if (!W || !H) return;
     w.classList.add('glass');
-    const d = roundPath(shapePts(a, W, H), 3); // скругление 3 (в макете 10 — пользователь попросил сильно меньше)
+    const d = roundPath(shapePts(a, W, H), 0); // скруглений нет (пользователь, 2026-10-22); маска нужна только для размытия
     const mask = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><path d="${d}"/></svg>`)}")`;
     el.style.webkitMaskImage = el.style.maskImage = mask;
     // куски снаружи — тоже светятся
@@ -747,38 +743,6 @@ table.motion th{color:var(--grey);font-weight:500}
       <path d="${d}" fill="none" stroke="url(#${id}g)" stroke-width="2.4" clip-path="url(#${id}c)"/></svg>`);
     if (!el.dataset.gl) { el.dataset.gl = 1; glRO.observe(el); }
   }
-  // ---- скругление углов у фигур на clip-path: polygon (радиус 4) ----
-  const evLen = (t, D) => { t = t.trim(); if (t.startsWith('calc(')) t = t.slice(5, -1); let sum = 0, sg = 1;
-    for (const x of t.split(/\s+/)) { if (x === '+') { sg = 1; continue; } if (x === '-') { sg = -1; continue; } sum += sg * (x.endsWith('%') ? parseFloat(x) * D / 100 : parseFloat(x)); sg = 1; }
-    return sum; };
-  const splitTop = (str, sep) => { const out = []; let depth = 0, cur = '';
-    for (const ch of str) { if (ch === '(') depth++; if (ch === ')') depth--; if (depth === 0 && sep.test(ch)) { if (cur.trim()) out.push(cur.trim()); cur = ''; } else cur += ch; }
-    if (cur.trim()) out.push(cur.trim()); return out; };
-  const polyPts = (poly, w, h) => splitTop(poly.slice(8, -1), /,/).map(pt => { const [x, y] = splitTop(pt, /\s/); return [evLen(x, w), evLen(y, h)]; });
-  const rndRO = new ResizeObserver(es => es.forEach(e => rndOne(e.target)));
-  function rndOne(el) {
-    const w = el.offsetWidth, h = el.offsetHeight; if (!w || !h || !el._poly) return;
-    const r = 4;
-    const svg = (d, W, H) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><path d="${d}"/></svg>`)}")`;
-    el.style.webkitMaskImage = el.style.maskImage = svg(roundPath(polyPts(el._poly, w, h), r), w, h);
-    el.style.webkitMaskSize = el.style.maskSize = '100% 100%';
-    // внутренняя форма для рамки на ::before (inset 1px): та же формула на меньшем прямоугольнике
-    const inner = polyPts(el._poly, w - 2, h - 2).map(([x, y]) => [x + 1, y + 1]);
-    el.style.setProperty('--rmask-in', svg(roundPath(inner, r - 1), w, h));
-  }
-  function roundShapes(root) {
-    root.querySelectorAll('*').forEach(el => {
-      if (el._poly || el.closest('svg') || el.matches(NO_RND)) return;
-      const cp = getComputedStyle(el).clipPath; if (!cp.startsWith('polygon(')) return;
-      el._poly = cp; el.style.clipPath = 'none'; el.classList.add('rnd');
-      rndOne(el); rndRO.observe(el);
-    });
-  }
-  // строки списков (панель C) и «+» — без скругления, чистые срезы (пользователь, 2026-10-22)
-  const NO_RND = '.shape-c, .fab';
-  let rndQ = 0;
-  new MutationObserver(() => { if (!rndQ) rndQ = requestAnimationFrame(() => { rndQ = 0; roundShapes(document.body); }); }).observe(document.body, { childList: true, subtree: true });
-  requestAnimationFrame(() => roundShapes(document.body));
   // 3D-нажатие стеклянной панели: утапливается и наклоняется в сторону пальца
   function glassPress(e) {
     const w = e.target.closest('.hud-wrap.glass'); if (!w || e.target.closest('button,a,input')) return;
