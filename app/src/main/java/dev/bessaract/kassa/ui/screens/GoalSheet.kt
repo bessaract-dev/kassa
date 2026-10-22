@@ -94,10 +94,7 @@ fun GoalSheetContent(
     LaunchedEffect(key) { if (original == null) focus.requestFocus() }
 
     Column {
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
-            Text((if (original == null) "Новая цель" else "Правка цели").uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text("目标", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
-        }
+        SheetHeader((if (original == null) "Новая цель" else "Правка цели"), "目标", onCancel)
         SheetLabel("Цель")
         SheetField(
             name, "Накопить 100к, путешествие в Китай…",
@@ -131,7 +128,7 @@ fun GoalSheetContent(
         )
 
         Spacer(Modifier.height(16.dp))
-        val keys = listOfNotNull("Сохранить⇲⇲", if (original != null) "Удалить删除" else null, "Отмена取消")
+        val keys = listOfNotNull("Сохранить⇲⇲", if (original != null) "Удалить删除" else null)
         val v = remember(keys) { distinctButtonVariants(keys) }
         PrimaryButton("Сохранить", variant = v.first()) { save() }
         Spacer(Modifier.height(8.dp))
@@ -142,7 +139,6 @@ fun GoalSheetContent(
             }
             Spacer(Modifier.height(8.dp))
         }
-        GhostButton("Отмена", "取消", variant = v.last(), onClick = onCancel)
     }
 }
 
@@ -161,10 +157,7 @@ fun TopGoalSheetContent(goal: Goal, onSave: (Long) -> Unit, onCancel: () -> Unit
     LaunchedEffect(goal.id) { focus.requestFocus() }
 
     Column {
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
-            Text("ОТЛОЖИТЬ", style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text("存钱", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
-        }
+        SheetHeader("ОТЛОЖИТЬ", "存钱", onCancel)
         Text(
             "«${goal.name}»: накоплено ${formatRub(goal.saved, symbol = false)} из ${formatRub(goal.target, symbol = false)}, " +
                 "осталось ${formatRub(maxOf(0, goal.target - goal.saved), symbol = false)}. Сумма вычтется из «Свободно до конца месяца».",
@@ -191,10 +184,9 @@ fun TopGoalSheetContent(goal: Goal, onSave: (Long) -> Unit, onCancel: () -> Unit
         if (err.isNotEmpty()) Text(err, style = KassaType.Small.copy(color = KassaColors.Bad), modifier = Modifier.padding(bottom = 8.dp))
 
         Spacer(Modifier.height(8.dp))
-        val keys = listOf("Отложить⇲⇲", "Отмена取消")
+        val keys = listOf("Отложить⇲⇲")
         val v = remember { distinctButtonVariants(keys) }
         PrimaryButton("Отложить", variant = v.first()) { save() }
         Spacer(Modifier.height(8.dp))
-        GhostButton("Отмена", "取消", variant = v.last(), onClick = onCancel)
     }
 }

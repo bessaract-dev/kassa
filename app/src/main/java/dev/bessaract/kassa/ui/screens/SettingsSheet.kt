@@ -37,10 +37,7 @@ fun SettingsSheetContent(
 ) {
     val busy = backup == BackupUi.Busy
     Column {
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
-            Text("НАСТРОЙКИ", style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text("设置", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
-        }
+        SheetHeader("НАСТРОЙКИ", "设置", onCancel)
         SheetLabel("Резервная копия")
 
         if (backup is BackupUi.Ready) {
@@ -52,7 +49,7 @@ fun SettingsSheetContent(
             StatRow("Новых категорий", p.cats.size)
             StatRow("Уже есть, пропущу", p.skipped)
             Spacer(Modifier.height(16.dp))
-            val keys = listOfNotNull(if (p.isEmpty) null else "Добавить из копии⇲⇲", "Отмена取消")
+            val keys = listOfNotNull(if (p.isEmpty) null else "Добавить из копии⇲⇲")
             val v = remember(keys) { distinctButtonVariants(keys) }
             if (p.isEmpty) {
                 Info("Всё из этой копии уже есть в телефоне.")
@@ -61,7 +58,6 @@ fun SettingsSheetContent(
                 PrimaryButton("Добавить из копии", variant = v.first(), onClick = onApply)
                 Spacer(Modifier.height(8.dp))
             }
-            GhostButton("Отмена", "取消", variant = v.last(), onClick = onCancel)
             return@Column
         }
 
@@ -77,13 +73,12 @@ fun SettingsSheetContent(
             else -> {}
         }
         Spacer(Modifier.height(16.dp))
-        val keys = listOf("Сохранить копию⇲⇲", "Восстановить из копии恢复", "Отмена取消")
+        val keys = listOf("Сохранить копию⇲⇲", "Восстановить из копии恢复")
         val v = remember { distinctButtonVariants(keys) }
         PrimaryButton("Сохранить копию", variant = v[0]) { if (!busy) onExport() }
         Spacer(Modifier.height(8.dp))
         GhostButton("Восстановить из копии", "恢复", variant = v[1]) { if (!busy) onPick() }
         Spacer(Modifier.height(8.dp))
-        GhostButton("Отмена", "取消", variant = v[2], onClick = onCancel)
     }
 }
 

@@ -1,5 +1,21 @@
 package dev.bessaract.kassa.ui.components
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -112,18 +128,54 @@ enum class PanelKind(val bg: Color, val fg: Color) {
     DARK(KassaColors.Surface, KassaColors.Text),
 }
 
-/** Панель v3. Тёмная — с рамкой цвета line, светлые — сплошные. При перерасходе LIME → BAD плавно. */
+/**
+ * Панель v3. Тёмная — с рамкой цвета line; [highlight] — заполненная строка списка: рамка лайм 45% и отсвет слева.
+ * Светлые панели A и B — «стекло» (2026-10-22, макет Figma): полупрозрачная заливка, зерно, свечение цвета панели,
+ * светлая кромка. Размытия под панелью в Android нет, поэтому заливка плотнее, чем в прототипе (62% / 88%).
+ * [onClick] у стеклянной панели — нажатие с утапливанием и наклоном к пальцу. При перерасходе LIME → BAD плавно.
+ */
 @Composable
 fun Panel(
     shape: Shape,
     kind: PanelKind,
     modifier: Modifier = Modifier,
     padding: Dp = 16.dp,
+    highlight: Boolean = false,
+    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val bg by animateColorAsState(kind.bg, tween(Motion.BASE, easing = Motion.EaseOut), label = "panel")
-    var m = modifier.fillMaxWidth().panelDecor(shape) { if (kind == PanelKind.DARK) KassaColors.Line else bg }.clip(shape).background(bg)
-    if (kind == PanelKind.DARK) m = m.border(1.dp, KassaColors.Line, shape)
+    val glass = kind != PanelKind.DARK && (shape === ShapeA || shape === ShapeB)
+    var m = modifier.fillMaxWidth()
+    if (glass) {
+        val fill = bg.copy(alpha = if (kind == PanelKind.PAPER) GLASS_PAPER else GLASS_LIME)
+        val grain = rememberGrain()
+        if (onClick != null) m = m.glassPress(onClick)
+        m = m.glassGlow(shape) { bg }
+            .panelDecor(shape) { bg.copy(alpha = 0.65f) }
+            .clip(shape)
+            .background(fill)
+            .drawBehind {
+                // зерно: чёрный шум ~18%, умножение
+                drawRect(ShaderBrush(ImageShader(grain, TileMode.Repeated, TileMode.Repeated)), alpha = 0.18f, blendMode = BlendMode.Multiply)
+                // светлая кромка: ярче сверху слева, гаснет к середине, чуть светлее снизу справа; видна внутренняя половина штриха
+                val outline = shape.createOutline(size, layoutDirection, this)
+                if (outline is Outline.Generic) drawPath(
+                    outline.path,
+                    Brush.linearGradient(
+                        0f to Color.White.copy(alpha = 0.75f), 0.45f to Color.White.copy(alpha = 0.08f), 1f to Color.White.copy(alpha = 0.35f),
+                        start = Offset.Zero, end = Offset(size.width, size.height),
+                    ),
+                    style = Stroke(2.4.dp.toPx()),
+                )
+            }
+    } else {
+        m = m.panelDecor(shape) { if (kind == PanelKind.DARK) KassaColors.Line else bg }.clip(shape).background(bg)
+        if (highlight) m = m.drawBehind {
+            drawRect(Brush.horizontalGradient(0f to KassaColors.Lime.copy(alpha = 0.08f), 0.55f to Color.Transparent))
+        }
+        if (kind == PanelKind.DARK) m = m.border(1.dp, if (highlight) KassaColors.Lime.copy(alpha = 0.45f) else KassaColors.Line, shape)
+    }
     Box(m) {
         Column(Modifier.padding(padding)) {
             androidx.compose.runtime.CompositionLocalProvider(
@@ -164,6 +216,83 @@ private fun Modifier.panelDecor(shape: Shape, color: () -> Color): Modifier =
             hatchRect(c, -p(9f), p(20f), -p(4f), p(20f) + h * 0.3f)
         }
     }
+
+private const val GLASS_LIME = 0.74f
+private const val GLASS_PAPER = 0.93f
+
+/** Зерно стекла: 140×140 серого шума, один раз на всё приложение. */
+private var grainBitmap: ImageBitmap? = null
+
+@Composable
+private fun rememberGrain(): ImageBitmap = remember {
+    grainBitmap ?: run {
+        val n = 140
+        val rnd = java.util.Random(48_1508)
+        val px = IntArray(n * n) { val v = 128 + rnd.nextInt(128); (0xFF shl 24) or (v shl 16) or (v shl 8) or v }
+        android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap().also { grainBitmap = it }
+    }
+}
+
+/**
+ * Свечение цвета панели: та же форма, размытие ~30, сдвиг 4 dp вниз, 70%.
+ * Внутри формы не рисуется — не просвечивает сквозь полупрозрачное стекло.
+ */
+private fun Modifier.glassGlow(shape: Shape, color: () -> Color): Modifier = drawBehind {
+    val outline = shape.createOutline(size, layoutDirection, this) as? Outline.Generic ?: return@drawBehind
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color().copy(alpha = 0.7f).toArgb()
+        maskFilter = android.graphics.BlurMaskFilter(18.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    drawIntoCanvas { c ->
+        val nc = c.nativeCanvas
+        nc.save()
+        nc.clipOutPathCompat(outline.path.asAndroidPath())
+        nc.translate(0f, 4.dp.toPx())
+        nc.drawPath(outline.path.asAndroidPath(), paint)
+        nc.restore()
+    }
+}
+
+private fun android.graphics.Canvas.clipOutPathCompat(p: android.graphics.Path) {
+    if (android.os.Build.VERSION.SDK_INT >= 26) clipOutPath(p)
+    else @Suppress("DEPRECATION") clipPath(p, android.graphics.Region.Op.DIFFERENCE)
+}
+
+/**
+ * Нажатие стеклянной панели: утапливается и наклоняется к пальцу до 7°, 120 мс; возврат 220 мс.
+ * При выключенных анимациях — просто нажатие.
+ */
+private fun Modifier.glassPress(onClick: () -> Unit): Modifier = composed {
+    val motion = rememberMotionEnabled()
+    var down by remember { mutableStateOf(false) }
+    var tilt by remember { mutableStateOf(Offset.Zero) }
+    val p by animateFloatAsState(
+        if (down && motion) 1f else 0f,
+        tween(if (down) Motion.FAST else 220, easing = Motion.EaseOut), label = "glass",
+    )
+    val haptic = LocalHapticFeedback.current
+    this
+        .graphicsLayer {
+            cameraDistance = 12f * density
+            // палец снизу — нижний край уходит от нас, справа — правый
+            rotationX = tilt.y * 7f * p
+            rotationY = tilt.x * 7f * p
+            scaleX = 1f - 0.03f * p; scaleY = 1f - 0.03f * p
+            translationY = 1.dp.toPx() * p
+        }
+        .semantics { role = Role.Button }
+        .pointerInput(onClick) {
+            detectTapGestures(
+                onPress = { o ->
+                    tilt = Offset(o.x / size.width * 2f - 1f, o.y / size.height * 2f - 1f)
+                    down = true
+                    tryAwaitRelease()
+                    down = false
+                },
+                onTap = { haptic.performHapticFeedback(HapticFeedbackType.VirtualKey); onClick() },
+            )
+        }
+}
 
 /** Штриховка в прямоугольнике (как repeating-linear-gradient(-45deg, c 0 3px, transparent 3px 6px)). */
 private fun DrawScope.hatchRect(c: Color, l: Float, t: Float, r: Float, b: Float) {
@@ -309,7 +438,7 @@ fun OpRow(
     trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
-    Panel(ShapeC, PanelKind.DARK, modifier.press(onClick = onClick).graphicsLayer { alpha = if (dimmed) 0.62f else 1f }, padding = 0.dp) {
+    Panel(ShapeC, PanelKind.DARK, modifier.press(onClick = onClick).graphicsLayer { alpha = if (dimmed) 0.62f else 1f }, padding = 0.dp, highlight = true) {
         Row(
             Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -347,7 +476,8 @@ fun MiniButton(text: String, onClick: () -> Unit) {
 @Composable
 fun AddRow(text: String, modifier: Modifier = Modifier, mark: String = "+", onClick: () -> Unit) {
     Row(
-        modifier.fillMaxWidth().press(onClick = onClick).drawBehind {
+        // фон — тёмное «стекло» (в прототипе 55% с размытием; размытия нет — плотнее)
+        modifier.fillMaxWidth().press(onClick = onClick).background(KassaColors.Surface.copy(alpha = 0.85f)).drawBehind {
             val w = 1.dp.toPx()
             drawRect(
                 KassaColors.Line, topLeft = Offset(w / 2, w / 2), size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w),

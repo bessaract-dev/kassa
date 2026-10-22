@@ -9,8 +9,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
-// Формы панелей v3: многоугольники из prototype/style.html. С 2026-10-22 вершины скруглены
-// (roundPath в прототипе): стеклянные панели A/B — 3 dp; кнопки, чипы, поля — 4 dp; строки списков (C) и «+» — чистые срезы.
+// Формы панелей v3: многоугольники из prototype/style.html. С 0.6.2 (2026-10-22) скруглений нет нигде:
+// все вершины — острые срезы. roundedPolygon оставлен на случай возврата (r = 0 даёт обычный многоугольник).
 
 private fun shape(build: Path.(Size, Density) -> Unit) = object : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density) =
@@ -56,7 +56,7 @@ private fun rounded(radiusDp: Int, pts: Density.(Size) -> List<Offset>) = shape 
  * Панель A (главная), формы v3.1: срез 22 dp слева сверху, ступенька 8 dp в верхней грани, срез справа сверху,
  * срезы снизу, вырез 8 dp по левому краю ниже 58% высоты. Оторванные куски рисует [panelDecor].
  */
-val ShapeA = rounded(3) { s ->
+val ShapeA = rounded(0) { s ->
     val w = s.width; val h = s.height
     fun p(v: Int) = px(v)
     val y = h * 0.58f
@@ -68,7 +68,7 @@ val ShapeA = rounded(3) { s ->
 }
 
 /** Панель B (белая): срез 30 dp справа сверху, вырез 8 dp по правому краю ниже 38%, «язычок» снизу. */
-val ShapeB = rounded(3) { s ->
+val ShapeB = rounded(0) { s ->
     val w = s.width; val h = s.height
     fun p(v: Int) = px(v)
     val y = h * 0.38f; val x = w * 0.42f
@@ -79,8 +79,8 @@ val ShapeB = rounded(3) { s ->
     )
 }
 
-/** Срезы по диагонали: левый верхний и правый нижний. Панель C (12 dp), «+» (12), чип (6). Вершины скруглены. */
-fun diagonalCut(cutDp: Int, radiusDp: Int = 4) = rounded(radiusDp) { s ->
+/** Срезы по диагонали: левый верхний и правый нижний. Панель C (12 dp), «+» (12), чип (6). */
+fun diagonalCut(cutDp: Int, radiusDp: Int = 0) = rounded(radiusDp) { s ->
     val c = px(cutDp)
     listOf(Offset(c, 0f), Offset(s.width, 0f), Offset(s.width, s.height - c), Offset(s.width - c, s.height), Offset(0f, s.height), Offset(0f, c))
 }
@@ -97,7 +97,7 @@ val ButtonVariants = listOf(
 )
 
 /** Длинная кнопка: цельная форма, верхняя грань «прямо → вверх (чёлка) → прямо → вниз → прямо». */
-fun buttonShape(v: ButtonVariant) = rounded(4) { s ->
+fun buttonShape(v: ButtonVariant) = rounded(0) { s ->
     val w = s.width; val ht = s.height
     fun p(x: Int) = px(x)
     val h = p(v.h)
@@ -126,8 +126,8 @@ fun distinctButtonVariants(keys: List<String>): List<Int> {
     }
 }
 
-val ShapeC = diagonalCut(12, radiusDp = 0)
-val ShapeFab = diagonalCut(12, radiusDp = 0)
+val ShapeC = diagonalCut(12)
+val ShapeFab = diagonalCut(12)
 val ShapeChip = diagonalCut(6)
 
 /** Высота «уступа» нижнего листа. */

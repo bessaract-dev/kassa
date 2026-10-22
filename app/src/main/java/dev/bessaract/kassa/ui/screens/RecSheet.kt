@@ -81,11 +81,8 @@ fun RecSheetContent(
     LaunchedEffect(key) { if (original == null) focus.requestFocus() }
 
     Column {
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
-            val title = (if (original == null) "Новый " else "Правка: ") + if (inc) "доход" else "платёж"
-            Text(title.uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text(if (inc) "收入" else "付款", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
-        }
+        val title = (if (original == null) "Новый " else "Правка: ") + if (inc) "доход" else "платёж"
+        SheetHeader(title, if (inc) "收入" else "付款", onCancel)
 
         SheetLabel("Название")
         SheetField(
@@ -120,7 +117,7 @@ fun RecSheetContent(
         }
 
         Spacer(Modifier.height(16.dp))
-        val keys = listOfNotNull("Сохранить⇲⇲", if (original != null) "Удалить删除" else null, "Отмена取消")
+        val keys = listOfNotNull("Сохранить⇲⇲", if (original != null) "Удалить删除" else null)
         val v = remember(keys) { distinctButtonVariants(keys) }
         PrimaryButton("Сохранить", variant = v.first()) { save() }
         Spacer(Modifier.height(8.dp))
@@ -131,6 +128,5 @@ fun RecSheetContent(
             }
             Spacer(Modifier.height(8.dp))
         }
-        GhostButton("Отмена", "取消", variant = v.last(), onClick = onCancel)
     }
 }

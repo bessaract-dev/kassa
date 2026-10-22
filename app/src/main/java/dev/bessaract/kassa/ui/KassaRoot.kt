@@ -228,7 +228,7 @@ fun KassaContent(
                     // key: при смене вкладки панели заново «вытираются» по очереди.
                     androidx.compose.runtime.key(tab) {
                         when (tab) {
-                            Tab.HOME -> TodayScreen(s, onEdit = { sheet = it.id }, plan = plan, onOpenPlan = { tab = Tab.PLAN })
+                            Tab.HOME -> TodayScreen(s, onEdit = { sheet = it.id }, plan = plan, onOpenPlan = { tab = Tab.PLAN }, onOpenHistory = { tab = Tab.HIST })
                             Tab.HIST -> HistoryScreen(s) { sheet = it.id }
                             Tab.PLAN -> PlanScreen(s, plan, goals, onOpenExpenses = { tab = Tab.EXP }, onAddIncome = { sheet = NEW_REC_INC })
                             Tab.EXP -> ExpensesScreen(s, plan) { sheet = NEW_REC_EXP }

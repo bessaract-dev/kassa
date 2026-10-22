@@ -77,7 +77,7 @@ class PlanActions(val onEdit: (Recurring) -> Unit, val onPost: (Recurring) -> Un
  * и строки плана, которые ещё ждут проведения. Формулы — budget() из kassa.html.
  */
 @Composable
-fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpenPlan: () -> Unit) {
+fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpenPlan: () -> Unit, onOpenHistory: () -> Unit = {}) {
     val b = s.budget
     val sp = s.spending
     // Главная цифра есть только на этом экране — пока он открыт, глитч может выбрать её.
@@ -88,14 +88,14 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpe
     }
 
     if (b.noIncome) {
-        Panel(ShapeA, PanelKind.LIME, Modifier.reveal(2)) {
+        Panel(ShapeA, PanelKind.LIME, Modifier.reveal(2), onClick = onOpenHistory) {
             Spacer(Modifier.height(8.dp))
             PanelLabel("Потрачено сегодня", "支出", KassaColors.Ink)
             HeroAmount(sp.today)
             Text("операций сегодня: ${sp.todayTx.size}", style = KassaType.Small.copy(color = KassaColors.Ink.copy(alpha = 0.75f)))
             HeroDecor()
         }
-        Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(3)) {
+        Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(3), onClick = onOpenPlan) {
             PanelLabel("Лимит на день", "限额", KassaColors.Ink)
             Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("计划", style = KassaType.cjk(22).copy(color = KassaColors.Ink), modifier = Modifier.padding(end = 12.dp))
@@ -110,7 +110,7 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpe
         }
     } else {
         val over = b.leftToday < 0
-        Panel(ShapeA, if (over) PanelKind.BAD else PanelKind.LIME, Modifier.reveal(2)) {
+        Panel(ShapeA, if (over) PanelKind.BAD else PanelKind.LIME, Modifier.reveal(2), onClick = onOpenHistory) {
             Spacer(Modifier.height(8.dp))
             PanelLabel(if (over) "Перерасход за сегодня" else "Осталось на сегодня", if (over) "超支" else "余额", KassaColors.Ink)
             HeroAmount(b.leftToday)
@@ -120,7 +120,7 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpe
             )
             HeroDecor()
         }
-        Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(3)) {
+        Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(3), onClick = onOpenPlan) {
             PanelLabel("Свободно до конца месяца", "月底", KassaColors.Ink)
             Row(Modifier.padding(top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
                 ScrambleText(formatRub(b.free, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
@@ -310,7 +310,7 @@ private fun GoalRow(g: Goal, s: SpendingState, modifier: Modifier, goals: GoalAc
         else -> "${formatRub(g.saved, symbol = false)} из ${formatRub(g.target, symbol = false)} · ${(p * 100).toInt()}%" +
             if (gp.month > 0) " · в этом месяце +${formatRub(gp.month, symbol = false)}" else ""
     }
-    Panel(ShapeC, PanelKind.DARK, modifier.press { goals.onEdit(g) }, padding = 0.dp) {
+    Panel(ShapeC, PanelKind.DARK, modifier.press { goals.onEdit(g) }, padding = 0.dp, highlight = true) {
         Row(
             Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,

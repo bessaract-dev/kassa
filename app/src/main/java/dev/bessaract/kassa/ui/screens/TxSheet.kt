@@ -1,6 +1,11 @@
 package dev.bessaract.kassa.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,10 +104,7 @@ fun TxSheetContent(
             original == null -> if (inc) "Новый доход" else "Новая трата"
             else -> if (inc) "Правка дохода" else "Правка траты"
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
-            Text(title.uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text(if (inc) "收入" else "支出", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
-        }
+        SheetHeader(title, if (inc) "收入" else "支出", onCancel)
         if (original == null) {
             Segmented(listOf(TxType.EXP to "Трата", TxType.INC to "Доход"), type, Modifier.padding(top = 12.dp)) { t ->
                 if (t != type) {
@@ -188,7 +190,7 @@ fun TxSheetContent(
 
         Spacer(Modifier.height(16.dp))
         // Кнопки одного листа — разные варианты формы (ключи — как текст кнопки в прототипе).
-        val keys = listOfNotNull(if (locked) null else "Записать⇲⇲", if (original != null) "Удалить删除" else null, "Отмена取消")
+        val keys = listOfNotNull(if (locked) null else "Записать⇲⇲", if (original != null) "Удалить删除" else null)
         val v = remember(keys) { distinctButtonVariants(keys) }
         if (!locked) {
             PrimaryButton("Записать", variant = v.first()) { save() }
@@ -200,7 +202,22 @@ fun TxSheetContent(
             }
             Spacer(Modifier.height(8.dp))
         }
-        GhostButton("Отмена", "取消", variant = v.last(), onClick = onCancel)
+    }
+}
+
+/** Заголовок листа: название капсом, иероглиф и крупный крестик «Закрыть» без подложки (вместо кнопки «Отмена», 2026-10-22). */
+@Composable
+internal fun SheetHeader(title: String, cjk: String, onClose: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title.uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
+        Text(cjk, style = KassaType.cjk(14).copy(color = KassaColors.Lime))
+        Spacer(Modifier.width(6.dp))
+        Box(
+            Modifier.size(44.dp).press(onClick = onClose).semantics { contentDescription = "Закрыть" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("✕", style = KassaType.Body.copy(fontSize = 26.sp, lineHeight = 26.sp, color = KassaColors.Text))
+        }
     }
 }
 
