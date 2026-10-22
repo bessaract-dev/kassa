@@ -747,7 +747,7 @@ table.motion th{color:var(--grey);font-weight:500}
       <path d="${d}" fill="none" stroke="url(#${id}g)" stroke-width="2.4" clip-path="url(#${id}c)"/></svg>`);
     if (!el.dataset.gl) { el.dataset.gl = 1; glRO.observe(el); }
   }
-  // ---- скругление углов у фигур на clip-path: polygon (радиус 4, у «+» 6) ----
+  // ---- скругление углов у фигур на clip-path: polygon (радиус 4) ----
   const evLen = (t, D) => { t = t.trim(); if (t.startsWith('calc(')) t = t.slice(5, -1); let sum = 0, sg = 1;
     for (const x of t.split(/\s+/)) { if (x === '+') { sg = 1; continue; } if (x === '-') { sg = -1; continue; } sum += sg * (x.endsWith('%') ? parseFloat(x) * D / 100 : parseFloat(x)); sg = 1; }
     return sum; };
@@ -758,7 +758,7 @@ table.motion th{color:var(--grey);font-weight:500}
   const rndRO = new ResizeObserver(es => es.forEach(e => rndOne(e.target)));
   function rndOne(el) {
     const w = el.offsetWidth, h = el.offsetHeight; if (!w || !h || !el._poly) return;
-    const r = el.classList.contains('fab') ? 6 : 4;
+    const r = 4;
     const svg = (d, W, H) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><path d="${d}"/></svg>`)}")`;
     el.style.webkitMaskImage = el.style.maskImage = svg(roundPath(polyPts(el._poly, w, h), r), w, h);
     el.style.webkitMaskSize = el.style.maskSize = '100% 100%';
@@ -768,12 +768,14 @@ table.motion th{color:var(--grey);font-weight:500}
   }
   function roundShapes(root) {
     root.querySelectorAll('*').forEach(el => {
-      if (el._poly || el.closest('svg')) return;
+      if (el._poly || el.closest('svg') || el.matches(NO_RND)) return;
       const cp = getComputedStyle(el).clipPath; if (!cp.startsWith('polygon(')) return;
       el._poly = cp; el.style.clipPath = 'none'; el.classList.add('rnd');
       rndOne(el); rndRO.observe(el);
     });
   }
+  // строки списков (панель C) и «+» — без скругления, чистые срезы (пользователь, 2026-10-22)
+  const NO_RND = '.shape-c, .fab';
   let rndQ = 0;
   new MutationObserver(() => { if (!rndQ) rndQ = requestAnimationFrame(() => { rndQ = 0; roundShapes(document.body); }); }).observe(document.body, { childList: true, subtree: true });
   requestAnimationFrame(() => roundShapes(document.body));
