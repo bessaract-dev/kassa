@@ -32,7 +32,7 @@ val JetBrainsMono = FontFamily(
     variable(R.font.jetbrains_mono, 700),
 )
 
-/** Иероглифы — системный CJK-шрифт (Noto CJK на Android). */
+/** Иероглифы — системный CJK-шрифт (Noto Sans CJK SC на Android). */
 val Cjk = FontFamily.SansSerif
 
 /** Табличные цифры одинаковой ширины: суммы не «прыгают». */
@@ -73,5 +73,9 @@ object KassaType {
     val Nav = TextStyle(fontFamily = JetBrainsMono, fontSize = 9.sp, letterSpacing = 0.08.em)
 
     /** Иероглифы: 700–800, 13–22. */
-    fun cjk(size: Int) = TextStyle(fontFamily = Cjk, fontWeight = FontWeight.W800, fontSize = size.sp, lineHeight = size.sp)
+    // zh-CN: системный Noto CJK берёт начертания упрощённого китайского (SC), как PingFang SC в прототипе
+    fun cjk(size: Int) = TextStyle(
+        fontFamily = Cjk, fontWeight = FontWeight.W800, fontSize = size.sp, lineHeight = size.sp,
+        localeList = androidx.compose.ui.text.intl.LocaleList("zh-CN"),
+    )
 }

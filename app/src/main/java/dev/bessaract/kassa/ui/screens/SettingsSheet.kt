@@ -39,7 +39,7 @@ fun SettingsSheetContent(
     Column {
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
             Text("НАСТРОЙКИ", style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text("設定", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
+            Text("设置", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
         }
         SheetLabel("Резервная копия")
 
@@ -77,11 +77,11 @@ fun SettingsSheetContent(
             else -> {}
         }
         Spacer(Modifier.height(16.dp))
-        val keys = listOf("Сохранить копию⇲⇲", "Восстановить из копии復元", "Отмена取消")
+        val keys = listOf("Сохранить копию⇲⇲", "Восстановить из копии恢复", "Отмена取消")
         val v = remember { distinctButtonVariants(keys) }
         PrimaryButton("Сохранить копию", variant = v[0]) { if (!busy) onExport() }
         Spacer(Modifier.height(8.dp))
-        GhostButton("Восстановить из копии", "復元", variant = v[1]) { if (!busy) onPick() }
+        GhostButton("Восстановить из копии", "恢复", variant = v[1]) { if (!busy) onPick() }
         Spacer(Modifier.height(8.dp))
         GhostButton("Отмена", "取消", variant = v[2], onClick = onCancel)
     }

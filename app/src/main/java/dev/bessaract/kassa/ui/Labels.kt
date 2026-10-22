@@ -11,14 +11,14 @@ private val ru = Locale.forLanguageTag("ru")
 
 /** Иконка категории — один иероглиф. Первые шесть — из STYLE.md, остальные подобраны по смыслу. */
 private val catIcons = mapOf(
-    "Продукты" to "食", "Кафе и рестораны" to "茶", "Транспорт" to "車", "Дом" to "家",
-    "Развлечения" to "楽", "Связь и подписки" to "信", "Здоровье" to "医", "Одежда" to "服",
-    "Дети" to "子", "Подарки" to "贈", "Прочее" to "他", "Кредиты" to "債", "Накопления" to "貯",
-    "Зарплата" to "給", "Подработка" to "副", "Прочий доход" to "入",
+    "Продукты" to "食", "Кафе и рестораны" to "茶", "Транспорт" to "车", "Дом" to "家",
+    "Развлечения" to "乐", "Связь и подписки" to "讯", "Здоровье" to "医", "Одежда" to "服",
+    "Дети" to "童", "Подарки" to "礼", "Прочее" to "他", "Кредиты" to "债", "Накопления" to "存",
+    "Зарплата" to "薪", "Подработка" to "副", "Прочий доход" to "收",
 )
 
 fun catIcon(cat: Category?): String =
-    cat?.let { catIcons[it.name] ?: if (it.type == dev.bessaract.kassa.core.model.CatType.INC) "入" else null } ?: "支"
+    cat?.let { catIcons[it.name] ?: if (it.type == dev.bessaract.kassa.core.model.CatType.INC) "收" else null } ?: "支"
 
 /** Короткое название для чипа: «Кафе и рестораны» → «Кафе». */
 fun catShort(cat: Category): String = when (cat.name) {

@@ -84,7 +84,7 @@ fun RecSheetContent(
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
             val title = (if (original == null) "Новый " else "Правка: ") + if (inc) "доход" else "платёж"
             Text(title.uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text(if (inc) "収入" else "支払", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
+            Text(if (inc) "收入" else "付款", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
         }
 
         SheetLabel("Название")
@@ -120,13 +120,13 @@ fun RecSheetContent(
         }
 
         Spacer(Modifier.height(16.dp))
-        val keys = listOfNotNull("Сохранить⇲⇲", if (original != null) "Удалить削除" else null, "Отмена取消")
+        val keys = listOfNotNull("Сохранить⇲⇲", if (original != null) "Удалить删除" else null, "Отмена取消")
         val v = remember(keys) { distinctButtonVariants(keys) }
         PrimaryButton("Сохранить", variant = v.first()) { save() }
         Spacer(Modifier.height(8.dp))
         if (original != null) {
             // Уже проведённые операции остаются в истории.
-            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "削除", color = KassaColors.Bad, variant = v[1]) {
+            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "删除", color = KassaColors.Bad, variant = v[1]) {
                 if (confirmDelete) onDelete(original.id) else confirmDelete = true
             }
             Spacer(Modifier.height(8.dp))

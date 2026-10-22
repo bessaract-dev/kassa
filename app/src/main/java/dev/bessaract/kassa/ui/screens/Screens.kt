@@ -96,9 +96,9 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpe
             HeroDecor()
         }
         Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(3)) {
-            PanelLabel("Лимит на день", "限度", KassaColors.Ink)
+            PanelLabel("Лимит на день", "限额", KassaColors.Ink)
             Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("計画", style = KassaType.cjk(22).copy(color = KassaColors.Ink), modifier = Modifier.padding(end = 12.dp))
+                Text("计划", style = KassaType.cjk(22).copy(color = KassaColors.Ink), modifier = Modifier.padding(end = 12.dp))
                 Text(
                     "Добавь доходы и обязательные платежи во вкладке «План» — тогда здесь будет видно, сколько можно тратить в день.",
                     style = KassaType.Body.copy(color = KassaColors.Ink),
@@ -112,7 +112,7 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpe
         val over = b.leftToday < 0
         Panel(ShapeA, if (over) PanelKind.BAD else PanelKind.LIME, Modifier.reveal(2)) {
             Spacer(Modifier.height(8.dp))
-            PanelLabel(if (over) "Перерасход за сегодня" else "Осталось на сегодня", if (over) "超過" else "残高", KassaColors.Ink)
+            PanelLabel(if (over) "Перерасход за сегодня" else "Осталось на сегодня", if (over) "超支" else "余额", KassaColors.Ink)
             HeroAmount(b.leftToday)
             Text(
                 "лимит ${formatRub(b.dayLimit, symbol = false)} · потрачено ${formatRub(b.spentToday, symbol = false)}",
@@ -121,7 +121,7 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpe
             HeroDecor()
         }
         Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(3)) {
-            PanelLabel("Свободно до конца месяца", "月末", KassaColors.Ink)
+            PanelLabel("Свободно до конца месяца", "月底", KassaColors.Ink)
             Row(Modifier.padding(top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
                 ScrambleText(formatRub(b.free, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
                 Text(" ₽", style = KassaType.Mid.copy(color = KassaColors.Ink))
@@ -135,14 +135,14 @@ fun TodayScreen(s: SpendingState, onEdit: (Tx) -> Unit, plan: PlanActions, onOpe
         }
         val due = s.rec.byDay().filter { recStatus(it, s.monthTx, s.today) !is RecStatus.Done }
         if (due.isNotEmpty()) {
-            ListHeader("予定", "Ждут в этом месяце", "%02d шт".format(due.size), Modifier.reveal(4))
+            ListHeader("待付", "Ждут в этом месяце", "%02d шт".format(due.size), Modifier.reveal(4))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 due.forEachIndexed { i, r -> key(r.id) { RecRow(r, s, Modifier.reveal(5 + i), plan) } }
             }
         }
     }
 
-    ListHeader("履歴", "Операции сегодня", "%02d шт".format(sp.todayTx.size), Modifier.reveal(5))
+    ListHeader("记录", "Операции сегодня", "%02d шт".format(sp.todayTx.size), Modifier.reveal(5))
     if (sp.todayTx.isEmpty()) {
         EmptyRow("Пока пусто. Нажми «+», чтобы записать трату.", Modifier.reveal(6))
     } else {
@@ -179,7 +179,7 @@ fun HistoryScreen(s: SpendingState, onEdit: (Tx) -> Unit) {
     // плашка: остаток (= «Свободно до конца месяца») и из чего он складывается
     val due = s.rec.filter { it.type == CatType.EXP && recStatus(it, s.monthTx, s.today) !is RecStatus.Done }.sumOf { it.amt }
     Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(2)) {
-        PanelLabel("Остаток на месяц", "今月", KassaColors.Ink)
+        PanelLabel("Остаток на месяц", "本月", KassaColors.Ink)
         Row(Modifier.padding(top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.Bottom) {
             ScrambleText(formatRub(b.free, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
             Text(" ₽", style = KassaType.Mid.copy(color = KassaColors.Ink))
@@ -227,7 +227,7 @@ fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onOpenEx
     val paid = exp.count { recStatus(it, s.monthTx, s.today) is RecStatus.Done }
     var filter by rememberSaveable { mutableStateOf(PlanFilter.ALL) }
     Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(2)) {
-        PanelLabel("Остаток на месяц", "余り", KassaColors.Ink)
+        PanelLabel("Остаток на месяц", "结余", KassaColors.Ink)
         Row(Modifier.padding(top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.Bottom) {
             ScrambleText(formatRub(rest, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
             Text(" ₽", style = KassaType.Mid.copy(color = KassaColors.Ink))
@@ -247,10 +247,10 @@ fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onOpenEx
     var i = 4
     val addInc = "Добавить доход (зарплата, аванс…)"
     when (filter) {
-        PlanFilter.INC -> ListHeader("収入", "Постоянные доходы", "+" + formatRub(b.planInc, symbol = false), Modifier.reveal(i++))
-        PlanFilter.EXP -> ListHeader("支払", "Обязательные платежи", "$paid/${exp.size} оплачено", Modifier.reveal(i++))
+        PlanFilter.INC -> ListHeader("收入", "Постоянные доходы", "+" + formatRub(b.planInc, symbol = false), Modifier.reveal(i++))
+        PlanFilter.EXP -> ListHeader("付款", "Обязательные платежи", "$paid/${exp.size} оплачено", Modifier.reveal(i++))
         PlanFilter.ALL -> ListHeader(
-            "暦", "По числам",
+            "日历", "По числам",
             "+${formatRub(b.planInc, symbol = false)} / −${formatRub(recExp, symbol = false)}", Modifier.reveal(i++),
         )
     }
@@ -271,7 +271,7 @@ fun PlanScreen(s: SpendingState, plan: PlanActions, goals: GoalActions, onOpenEx
         if (filter != PlanFilter.INC) AddRow("Платежи меняются во вкладке «Расходы»", Modifier.reveal(i++), mark = "→", onClick = onOpenExpenses)
     }
     val active = s.goals.count { it.saved < it.target }
-    ListHeader("目標", "Цели", if (s.goals.isEmpty()) "" else "$active в работе", Modifier.reveal(i++))
+    ListHeader("目标", "Цели", if (s.goals.isEmpty()) "" else "$active в работе", Modifier.reveal(i++))
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         s.goals.forEach { g -> key(g.id) { GoalRow(g, s, Modifier.reveal(i++), goals) } }
         AddRow("Добавить цель (накопить 100к, поездка…)", Modifier.reveal(i++), onClick = goals.onNew)
@@ -317,7 +317,7 @@ private fun GoalRow(g: Goal, s: SpendingState, modifier: Modifier, goals: GoalAc
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Box(Modifier.size(34.dp).background(KassaColors.Raised), contentAlignment = Alignment.Center) {
-                Text("貯", style = KassaType.cjk(13).copy(color = KassaColors.Lime))
+                Text("存", style = KassaType.cjk(13).copy(color = KassaColors.Lime))
             }
             Column(Modifier.weight(1f)) {
                 Text(g.name, style = KassaType.Body, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -371,7 +371,7 @@ fun ExpensesScreen(s: SpendingState, plan: PlanActions, onAdd: () -> Unit) {
     val paid = exp.mapNotNull { r -> recPayment(r.id, s.monthTx, s.today) }
     val due = exp.filter { recPayment(it.id, s.monthTx, s.today) == null }
     Panel(ShapeB, PanelKind.PAPER, Modifier.reveal(2)) {
-        PanelLabel("Обязательные в месяц", "支払", KassaColors.Ink)
+        PanelLabel("Обязательные в месяц", "付款", KassaColors.Ink)
         Row(Modifier.padding(top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.Bottom) {
             ScrambleText(formatRub(exp.sumOf { it.amt }, symbol = false), KassaType.Mid.copy(color = KassaColors.Ink), Modifier.weight(1f, fill = false))
             Text(" ₽", style = KassaType.Mid.copy(color = KassaColors.Ink))
@@ -383,14 +383,14 @@ fun ExpensesScreen(s: SpendingState, plan: PlanActions, onAdd: () -> Unit) {
         }
     }
     var i = 3
-    ListHeader("支払", "Обязательные платежи", "${paid.size}/${exp.size} оплачено", Modifier.reveal(i++))
+    ListHeader("付款", "Обязательные платежи", "${paid.size}/${exp.size} оплачено", Modifier.reveal(i++))
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         exp.forEach { r -> key(r.id) { RecRow(r, s, Modifier.reveal(i++), plan) } }
         AddRow("Добавить платёж (аренда, связь…)", Modifier.reveal(i++), onClick = onAdd)
     }
-    ListHeader("債", "Кредиты и долги", "", Modifier.reveal(i++))
+    ListHeader("债", "Кредиты и долги", "", Modifier.reveal(i++))
     Panel(ShapeC, PanelKind.DARK, Modifier.reveal(i++)) {
-        PanelLabel("В разработке", "工事中", KassaColors.Grey)
+        PanelLabel("В разработке", "开发中", KassaColors.Grey)
         Text("Кредиты и долги с графиком платежей и процентами — следующая версия.", style = KassaType.Body, modifier = Modifier.padding(top = 10.dp))
     }
     Text(
@@ -431,7 +431,7 @@ private fun TxRow(t: Tx, s: SpendingState, modifier: Modifier, onEdit: (Tx) -> U
 @Composable
 fun PlaceholderScreen(text: String) {
     Panel(dev.bessaract.kassa.ui.theme.ShapeC, PanelKind.DARK, Modifier.reveal(2)) {
-        PanelLabel("В разработке", "工事中", KassaColors.Grey)
+        PanelLabel("В разработке", "开发中", KassaColors.Grey)
         Box(Modifier.fillMaxWidth().padding(top = 10.dp)) {
             Text(text, style = KassaType.Body)
         }

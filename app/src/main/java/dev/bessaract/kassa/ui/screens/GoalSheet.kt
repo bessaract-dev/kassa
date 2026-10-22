@@ -96,7 +96,7 @@ fun GoalSheetContent(
     Column {
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
             Text((if (original == null) "Новая цель" else "Правка цели").uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text("目標", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
+            Text("目标", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
         }
         SheetLabel("Цель")
         SheetField(
@@ -131,13 +131,13 @@ fun GoalSheetContent(
         )
 
         Spacer(Modifier.height(16.dp))
-        val keys = listOfNotNull("Сохранить⇲⇲", if (original != null) "Удалить削除" else null, "Отмена取消")
+        val keys = listOfNotNull("Сохранить⇲⇲", if (original != null) "Удалить删除" else null, "Отмена取消")
         val v = remember(keys) { distinctButtonVariants(keys) }
         PrimaryButton("Сохранить", variant = v.first()) { save() }
         Spacer(Modifier.height(8.dp))
         if (original != null) {
             // Взносы остаются в истории.
-            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "削除", color = KassaColors.Bad, variant = v[1]) {
+            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "删除", color = KassaColors.Bad, variant = v[1]) {
                 if (confirmDelete) onDelete(original.id) else confirmDelete = true
             }
             Spacer(Modifier.height(8.dp))
@@ -163,7 +163,7 @@ fun TopGoalSheetContent(goal: Goal, onSave: (Long) -> Unit, onCancel: () -> Unit
     Column {
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
             Text("ОТЛОЖИТЬ", style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text("貯金", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
+            Text("存钱", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
         }
         Text(
             "«${goal.name}»: накоплено ${formatRub(goal.saved, symbol = false)} из ${formatRub(goal.target, symbol = false)}, " +

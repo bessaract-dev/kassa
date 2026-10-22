@@ -98,9 +98,9 @@ import dev.bessaract.kassa.ui.theme.Tektur
 
 /** Вкладки нижней навигации, как в prototype/style.html: две слева от «+», две справа. */
 enum class Tab(val label: String, val cjk: String) {
-    HOME("Сегодня", "今日"),
-    HIST("История", "履歴"),
-    PLAN("План", "計画"),
+    HOME("Сегодня", "今天"),
+    HIST("История", "记录"),
+    PLAN("План", "计划"),
     EXP("Расходы", "支出"),
 }
 
@@ -336,7 +336,7 @@ fun KassaContent(
 private fun SysLine(s: SpendingState, onSettings: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 18.dp, start = 4.dp).reveal(0), verticalAlignment = Alignment.CenterVertically) {
         Text("KS-01 // " + sysDate(s.today), style = KassaType.Label.copy(color = KassaColors.Grey, fontWeight = null, letterSpacing = KassaType.Nav.letterSpacing), modifier = Modifier.weight(1f))
-        Text("残 ${daysLeft(s.today)} ДН", style = KassaType.Label.copy(color = KassaColors.Grey, fontWeight = null))
+        Text("剩 ${daysLeft(s.today)} ДН", style = KassaType.Label.copy(color = KassaColors.Grey, fontWeight = null))
         // \uFE0E — текстовый вид значка, а не цветной эмодзи
         Text(
             "⚙\uFE0E",
@@ -424,7 +424,8 @@ private fun androidx.compose.foundation.layout.RowScope.NavItem(t: Tab, current:
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(t.cjk, style = KassaType.cjk(15).copy(color = color))
+        // иероглифы в навигации на 50%, как в прототипе
+        Text(t.cjk, style = KassaType.cjk(15).copy(color = color.copy(alpha = 0.5f)))
         Spacer(Modifier.height(3.dp))
         Text(t.label.uppercase(), style = KassaType.Nav.copy(color = color), maxLines = 1)
     }

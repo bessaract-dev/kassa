@@ -101,7 +101,7 @@ fun TxSheetContent(
         }
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
             Text(title.uppercase(), style = KassaType.SheetTitle, modifier = Modifier.weight(1f))
-            Text(if (inc) "収入" else "支出", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
+            Text(if (inc) "收入" else "支出", style = KassaType.cjk(14).copy(color = KassaColors.Lime))
         }
         if (original == null) {
             Segmented(listOf(TxType.EXP to "Трата", TxType.INC to "Доход"), type, Modifier.padding(top = 12.dp)) { t ->
@@ -188,14 +188,14 @@ fun TxSheetContent(
 
         Spacer(Modifier.height(16.dp))
         // Кнопки одного листа — разные варианты формы (ключи — как текст кнопки в прототипе).
-        val keys = listOfNotNull(if (locked) null else "Записать⇲⇲", if (original != null) "Удалить削除" else null, "Отмена取消")
+        val keys = listOfNotNull(if (locked) null else "Записать⇲⇲", if (original != null) "Удалить删除" else null, "Отмена取消")
         val v = remember(keys) { distinctButtonVariants(keys) }
         if (!locked) {
             PrimaryButton("Записать", variant = v.first()) { save() }
             Spacer(Modifier.height(8.dp))
         }
         if (original != null) {
-            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "削除", color = KassaColors.Bad, variant = v[keys.indexOf("Удалить削除")]) {
+            GhostButton(if (confirmDelete) "Точно удалить?" else "Удалить", "删除", color = KassaColors.Bad, variant = v[keys.indexOf("Удалить删除")]) {
                 if (confirmDelete) onDelete(original.id) else confirmDelete = true
             }
             Spacer(Modifier.height(8.dp))
