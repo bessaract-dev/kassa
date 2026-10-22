@@ -184,7 +184,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Записать трату или доход. При правке сохраняем время внесения, счёт и связь ref исходной операции. */
+    /** Записать трату, доход или перевод. При правке сохраняем время внесения и связь ref исходной операции; счёт — из формы. */
     fun save(draft: TxDraft, original: Tx?) {
         viewModelScope.launch {
             val type = if (draft.t == TxType.INC) CatType.INC else CatType.EXP

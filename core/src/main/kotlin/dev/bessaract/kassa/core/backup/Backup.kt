@@ -1,6 +1,7 @@
 package dev.bessaract.kassa.core.backup
 
 import dev.bessaract.kassa.core.model.Account
+import dev.bessaract.kassa.core.model.BASE_CURRENCY
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Category
 import dev.bessaract.kassa.core.model.Goal
@@ -207,6 +208,10 @@ fun mergePlan(
     val newGoals = data.goals.filter { it.id !in goalIds }.distinctBy { it.id }
     val loanIds = loans.mapTo(HashSet()) { it.id }
     val newLoans = data.loans.filter { it.id !in loanIds }.distinctBy { it.id }
+    // счета только в рублях (0.8): валютный счёт из веб-версии не переносим — его баланс сложился бы неверно
+    val accIds = accounts.mapTo(HashSet()) { it.id }
+    val fileAcc = data.accounts.filter { it.id.isNotBlank() && it.cur == BASE_CURRENCY }.distinctBy { it.id }
+    val newAccounts = fileAcc.filter { it.id !in accIds }
     val newTx = data.tx.filter { it.id !in txIds }.distinctBy { it.id }.map { it.copy(cat = catMap[it.cat] ?: it.cat) }
     return MergePlan(
         cats = newCats,
@@ -214,14 +219,14 @@ fun mergePlan(
         rec = newRec,
         tx = newTx,
         skipped = (data.rec.size - newRec.size) + (data.tx.size - newTx.size) + (data.goals.size - newGoals.size) +
-            (data.loans.size - newLoans.size),
+            (data.loans.size - newLoans.size) + (fileAcc.size - newAccounts.size),
         goals = newGoals,
         // цель из копии приходит со своим saved, где её взносы уже учтены; у цели из телефона — нет
         goalTopUps = newTx.filter { it.ref?.kind == RefKind.GOAL && it.ref.id in goalIds }
             .groupBy { it.ref!!.id }.mapValues { (_, l) -> l.sumOf { it.rub } },
         loans = newLoans,
         // счёт из копии приходит со своим остатком на старте; баланс сложится из него и операций
-        accounts = run { val ids = accounts.mapTo(HashSet()) { it.id }; data.accounts.filter { it.id.isNotBlank() && it.id !in ids }.distinctBy { it.id } },
+        accounts = newAccounts,
         // так же с кредитами: у кредита из копии остаток уже уменьшен её платежами
         loanPayoffs = run {
             val fileTx = data.tx.mapTo(HashSet()) { it.id }

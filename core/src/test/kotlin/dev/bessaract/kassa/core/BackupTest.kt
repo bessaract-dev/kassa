@@ -147,9 +147,12 @@ class BackupTest {
         assertEquals(accs, back.accounts)
         assertEquals(tr, back.tx.single { it.id == "tr1" })
         // счёт, что уже есть в телефоне, не трогаем; пустой id пропускаем
-        val withBlank = d.copy(accounts = accs + Account("", "x", "RUB", 0))
+        // и валютный счёт из веб-версии: счета только в рублях
+        val withBlank = d.copy(accounts = accs + Account("", "x", "RUB", 0) + Account("usd", "Доллары", "USD", 100_00))
         val plan = mergePlan(withBlank, cats, listOf("Я", "Варя"), rec, tx.map { it.id }.toSet(), accounts = listOf(accs[0]))
         assertEquals(listOf("a2"), plan.accounts.map { it.id })
         assertEquals(listOf("tr1"), plan.tx.map { it.id })
+        // 1 строка плана + 3 операции + 1 счёт уже есть
+        assertEquals(5, plan.skipped)
     }
 }
