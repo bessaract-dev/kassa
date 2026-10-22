@@ -120,22 +120,22 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .dark>*{position:relative;z-index:1}
 .over.lime{background:var(--bad);color:var(--ink)}
 /* Стеклянные панели A и B — по макету пользователя в Figma (2026-10-22, на пробу).
-   Заливка: лайм 33% / белая 88%, размытие под панелью 5, мелкое зерно (чёрный 25%), свечение цвета панели
+   Заливка: лайм 62% / белая 88% (лайм поднят с 33% макета — было тускло), зерно 18%, размытие под панелью 5, мелкое зерно (чёрный 25%), свечение цвета панели
    (размытие 30, сдвиг 4 вниз, 49%), скругление углов 10, светлая кромка. Куски — цвет панели 46%.
    Форму даёт SVG-маска (clip-path не обрезает размытие), свечение и кромку рисует JS (glassify). */
 .hud-wrap.glass{transform-style:preserve-3d;transition:transform var(--t-base) var(--ease-out);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .hud-wrap.glass.reveal{animation-fill-mode:backwards}
 .hud-wrap.glass.down{transition-duration:var(--t-fast)}
 .hud-wrap.glass>.panel{clip-path:none;isolation:isolate;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);-webkit-mask-size:100% 100%;mask-size:100% 100%}
-.hud-wrap.glass>.panel.lime{background:rgba(200,255,0,.33)}
-.hud-wrap.glass>.panel.lime.over{background:rgba(255,61,46,.33)}
+.hud-wrap.glass>.panel.lime{background:rgba(200,255,0,.62)}
+.hud-wrap.glass>.panel.lime.over{background:rgba(255,61,46,.62)}
 .hud-wrap.glass>.panel.paper{background:rgba(239,239,234,.88)}
-.hud-wrap.glass>.panel::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.25;mix-blend-mode:multiply;
+.hud-wrap.glass>.panel::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.18;mix-blend-mode:multiply;
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.95' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E") 0 0/140px 140px}
-.hud-wrap.glass>i{background:color-mix(in srgb,var(--hud-c) 46%,transparent)}
-.hud-wrap.glass>.hatch-l,.hud-wrap.glass>.tick{background:repeating-linear-gradient(-45deg,var(--hud-c) 0 3px,transparent 3px 6px),color-mix(in srgb,var(--hud-c) 46%,transparent)}
+.hud-wrap.glass>i{background:color-mix(in srgb,var(--hud-c) 65%,transparent)}
+.hud-wrap.glass>.hatch-l,.hud-wrap.glass>.tick{background:repeating-linear-gradient(-45deg,var(--hud-c) 0 3px,transparent 3px 6px),color-mix(in srgb,var(--hud-c) 65%,transparent)}
 .hud-wrap.glass>.rail{background:none}
-.hud-wrap.glass>.rail path{stroke-opacity:.64}
+.hud-wrap.glass>.rail path{stroke-opacity:.85}
 .hud-wrap>svg.gl{position:absolute;pointer-events:none;overflow:visible;color:var(--hud-c);transition:color var(--t-base)}
 @media (prefers-reduced-motion:reduce){.hud-wrap.glass{transition:none}}
 
@@ -575,19 +575,19 @@ table.motion th{color:var(--grey);font-weight:500}
     const noIncome = b.planInc + b.extraInc === 0;
     let h = '';
     if (noIncome) {
-      h += `<div class="panel lime shape-a${rv()}" style="padding-top:24px">${lbl('Потрачено сегодня', '支出')}
+      h += `<div class="panel lime shape-a${rv()}" data-act="goHist" style="padding-top:24px">${lbl('Потрачено сегодня', '支出')}
         <div class="big glitch" id="heroNum" data-text="${fmtN(b.spentAllToday)} ₽"><span class="num" data-val="${b.spentAllToday}">${fmtN(b.spentAllToday)}</span><small>₽</small></div>
         <div class="sub">операций сегодня: ${tTx.length}</div><div class="bar-row"><div class="hatch"></div><span class="arrows">⇲⇲⇲</span></div><span class="serial">SN 48-1508F</span></div>
-        <div class="panel paper shape-b${rv()}" style="padding-bottom:20px">${lbl('Лимит на день', '限度')}
+        <div class="panel paper shape-b${rv()}" data-act="goPlan" style="padding-bottom:20px">${lbl('Лимит на день', '限度')}
         <div class="hint" style="margin-top:8px"><span class="cjk" style="color:var(--ink)">計画</span><span>Добавь доходы и обязательные платежи во вкладке «План» — тогда здесь будет видно, сколько можно тратить в день.</span></div>
         <button class="btn primary press" data-act="goPlan" style="margin-top:14px"><span>Открыть план</span><span class="arrows">⇲⇲</span></button></div>`;
     } else {
       const over = b.leftToday < 0;
-      h += `<div class="panel lime shape-a${over ? ' over' : ''}${rv()}" style="padding-top:24px">${lbl(over ? 'Перерасход за сегодня' : 'Осталось на сегодня', over ? '超過' : '残高')}
+      h += `<div class="panel lime shape-a${over ? ' over' : ''}${rv()}" data-act="goHist" style="padding-top:24px">${lbl(over ? 'Перерасход за сегодня' : 'Осталось на сегодня', over ? '超過' : '残高')}
         <div class="big glitch" id="heroNum" data-text="${fmtN(b.leftToday)} ₽"><span class="num" data-val="${b.leftToday}">${fmtN(b.leftToday)}</span><small>₽</small></div>
         <div class="sub">лимит ${fmtN(b.dayLimit)} · потрачено ${fmtN(b.spentToday)}</div>
         <div class="bar-row"><div class="hatch"></div><span class="arrows">⇲⇲⇲</span></div><div class="hatch v"></div><span class="serial">SN 48-1508F</span></div>
-        <div class="panel paper shape-b${rv()}" style="padding-bottom:24px">${lbl('Свободно до конца месяца', '月末')}
+        <div class="panel paper shape-b${rv()}" data-act="goPlan" style="padding-bottom:24px">${lbl('Свободно до конца месяца', '月末')}
         <div class="mid"><span class="num" data-val="${b.free}">${fmtN(b.free)}</span> ₽</div>
         <div class="segs">${Array.from({ length: b.dim }, (_, i) => `<i class="${i + 1 < new Date().getDate() ? 'on' : i + 1 === new Date().getDate() ? 'now' : ''}"></i>`).join('')}</div>
         <div class="sub" style="margin-top:6px">дней осталось: ${b.left} из ${b.dim} · обязательные ${fmtN(b.fixed)}</div></div>`;
@@ -727,7 +727,7 @@ table.motion th{color:var(--grey);font-weight:500}
     w.insertAdjacentHTML('afterbegin', `<svg class="gl" ${box} aria-hidden="true"><defs>
       <filter id="${id}b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="15"/></filter>
       <mask id="${id}m" maskUnits="userSpaceOnUse" x="${-M}" y="${-M}" width="${W + 2 * M}" height="${H + 2 * M}"><rect x="${-M}" y="${-M}" width="${W + 2 * M}" height="${H + 2 * M}" fill="#fff"/><path d="${d}" fill="#000"/></mask></defs>
-      <g mask="url(#${id}m)" opacity=".49" filter="url(#${id}b)" fill="currentColor"><g transform="translate(0 4)"><path d="${d}"/>${pieces}${rail}</g></g></svg>`);
+      <g mask="url(#${id}m)" opacity=".7" filter="url(#${id}b)" fill="currentColor"><g transform="translate(0 4)"><path d="${d}"/>${pieces}${rail}</g></g></svg>`);
     // кромка стекла: светлая сверху слева, гаснет к середине, чуть светлее снизу справа
     w.insertAdjacentHTML('beforeend', `<svg class="gl" ${box} aria-hidden="true"><defs>
       <linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity=".35"/></linearGradient>
@@ -937,6 +937,7 @@ table.motion th{color:var(--grey);font-weight:500}
       save(); closeSheet(); render(true); toast(`Добавлено: ${m.tx.length} операций, ${m.rec.length} строк плана`);
     },
     goPlan() { tab = 'plan'; render(true); },
+    goHist() { tab = 'hist'; render(true); },
     goExp() { tab = 'exp'; render(true); },
     newRec(el) { const t = el.dataset.type; openSheet({ kind: 'rec', type: t, name: '', amt: '', day: '', cat: userCats(t)[t === 'exp' ? 3 : 0]?.id }); },
     editRec(el) { const r = S.rec.find(x => x.id === el.dataset.id); openSheet({ kind: 'rec', id: r.id, type: r.type, name: r.name, amt: String(r.amt), day: String(r.day), cat: r.cat }); },
