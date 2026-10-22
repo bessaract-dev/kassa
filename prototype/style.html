@@ -195,6 +195,13 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   *,*::before,*::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}
 }
 
+/* переключатель вида страницы */
+.view-ctl{position:fixed;top:12px;right:16px;z-index:50;display:flex;gap:4px;align-items:center;background:#060707e6;padding:6px;outline:1px solid var(--line);outline-offset:-1px}
+.view-ctl .lab{font-size:10px;letter-spacing:.12em;color:var(--grey);text-transform:uppercase;margin:0 6px}
+body.phone-only .spec{display:none}
+body.phone-only .page{grid-template-columns:390px;justify-content:center}
+body.phone-only .phone-wrap{position:static}
+
 /* ===== правая колонка: спецификация ===== */
 .spec h2{font:800 22px var(--display);text-transform:uppercase;margin:36px 0 12px;display:flex;gap:12px;align-items:baseline}
 .spec h2:first-child{margin-top:0}
@@ -221,6 +228,11 @@ table.motion th{color:var(--grey);font-weight:500}
 </style>
 </head>
 <body>
+<div class="view-ctl" role="group" aria-label="Вид страницы">
+  <span class="lab">Вид</span>
+  <button class="small-btn" data-view="phone">Только телефон</button>
+  <button class="small-btn" data-view="full">Телефон + стиль</button>
+</div>
 <div class="page">
 
   <!-- ================= ТЕЛЕФОН ================= -->
@@ -394,6 +406,17 @@ table.motion th{color:var(--grey);font-weight:500}
   const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const fmt = n => n.toLocaleString('ru-RU').replace(/ /g, ' ');
+
+  // вид страницы: только телефон / телефон + спецификация (запоминается в браузере)
+  function setView(v) {
+    document.body.classList.toggle('phone-only', v === 'phone');
+    $$('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+    try { localStorage.setItem('kassa.view', v); } catch (e) {}
+  }
+  let savedView = 'full';
+  try { savedView = localStorage.getItem('kassa.view') || 'full'; } catch (e) {}
+  setView(savedView);
+  $$('[data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
 
   // шкала дней
   const segs = $('#segs');
