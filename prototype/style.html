@@ -119,34 +119,21 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .dark::before{content:"";position:absolute;inset:1px;background:var(--surface);clip-path:inherit;z-index:0}
 .dark>*{position:relative;z-index:1}
 .over.lime{background:var(--bad);color:var(--ink)}
-/* Главная плашка — «стекло» (2026-10-22, на пробу, вариант 2). Слои:
-   1) под стеклом (.hud-a::before): цвет панели + крупные полосы и иероглиф, медленно плывут;
-   2) само стекло (панель): белёсый тон, размытие того, что под ним, блик и светлая кромка;
-   3) рифление (панель ::before): точки-линзы с бликом сверху слева и тенью снизу справа. */
-.hud-a::before{content:"残";position:absolute;inset:0;pointer-events:none;
-  clip-path:polygon(22px 0,calc(100% - 104px) 0,calc(100% - 96px) 8px,calc(100% - 34px) 8px,100% 42px,100% calc(100% - 28px),calc(100% - 28px) 100%,26px 100%,8px calc(100% - 18px),8px 58%,0 calc(58% - 8px),0 22px);
-  background:repeating-linear-gradient(115deg,transparent 0 34px,rgba(11,12,12,.30) 34px 52px,transparent 52px 66px,rgba(255,255,255,.45) 66px 74px) 0 0/200% 100%,var(--hud-c);
-  font:800 170px/1 var(--cjk);color:rgba(11,12,12,.22);text-align:right;padding-right:8px;overflow:hidden;
-  transition:background-color var(--t-base);animation:glass-drift 18s linear infinite}
-@keyframes glass-drift{to{background-position:-148px 0,0 0}}
+/* Главная плашка — «стекло» (2026-10-22, на пробу, вариант «прозрачность», выбран пользователем).
+   Плашка закреплена вверху ленты; сетка, трассы и строки списка уезжают под неё и видны размытыми.
+   Тон — цвет плашки 55%, поверх точки-линзы (блик сверху слева, тень снизу справа) и светлая кромка. */
+.scroll>.hud-a:has(>.lime){position:sticky;top:6px;z-index:5}
+/* после появления у обёртки не должно оставаться анимированных opacity/filter — иначе размытие не видит, что под ней */
+.scroll>.hud-a.reveal:has(>.lime){animation-fill-mode:backwards}
 .panel.lime.shape-a{isolation:isolate;
-  background:linear-gradient(135deg,rgba(255,255,255,.42),rgba(255,255,255,.10) 42%,rgba(255,255,255,.04) 60%,rgba(255,255,255,.22)),rgba(200,255,0,.30);
-  -webkit-backdrop-filter:blur(7px) saturate(1.5);backdrop-filter:blur(7px) saturate(1.5);
-  box-shadow:inset 1px 1px 0 rgba(255,255,255,.75),inset -1px -1px 0 rgba(0,0,0,.18)}
-.panel.lime.shape-a.over{background:linear-gradient(135deg,rgba(255,255,255,.36),rgba(255,255,255,.08) 42%,rgba(255,255,255,.03) 60%,rgba(255,255,255,.18)),rgba(255,61,46,.30)}
+  background:linear-gradient(135deg,rgba(255,255,255,.22),rgba(255,255,255,0) 40%,rgba(255,255,255,0) 70%,rgba(255,255,255,.10)),rgba(200,255,0,.55);
+  -webkit-backdrop-filter:blur(16px) saturate(1.6) brightness(1.15);backdrop-filter:blur(16px) saturate(1.6) brightness(1.15);
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.65),inset -1px -1px 0 rgba(0,0,0,.25)}
+.panel.lime.shape-a.over{background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(255,255,255,0) 40%,rgba(255,255,255,0) 70%,rgba(255,255,255,.08)),rgba(255,61,46,.55)}
 .panel.lime.shape-a::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
-  background:
-    radial-gradient(circle at 36% 36%,rgba(255,255,255,.85) 0 .9px,rgba(255,255,255,0) 1.9px),
-    radial-gradient(circle at 50% 50%,rgba(255,255,255,.10) 0 2.2px,rgba(0,0,0,.16) 2.9px,transparent 3.4px);
-  background-size:8px 8px,8px 8px;
-  -webkit-mask-image:linear-gradient(105deg,rgba(0,0,0,.45),#000 65%);mask-image:linear-gradient(105deg,rgba(0,0,0,.45),#000 65%)}
-/* оторванные куски главной плашки — тоже стекло: блик, кромка и столбик точек */
-.hud-a .bar{background:radial-gradient(circle at 40% 40%,rgba(255,255,255,.8) 0 .8px,transparent 1.6px) 0 0/5px 6px,
-  linear-gradient(90deg,rgba(255,255,255,.55),rgba(255,255,255,.05) 60%,rgba(0,0,0,.15)),var(--hud-c)}
-.hud-a .hatch-l{background:repeating-linear-gradient(-45deg,var(--hud-c) 0 3px,transparent 3px 6px);
-  -webkit-mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.45));mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.45))}
-.hud-a .rail path{filter:drop-shadow(0 0 2px var(--hud-c))}
-@media (prefers-reduced-motion:reduce){.hud-a::before{animation:none}}
+  background:radial-gradient(circle at 36% 36%,rgba(255,255,255,.38) 0 .8px,rgba(255,255,255,0) 1.7px),
+    radial-gradient(circle at 50% 50%,rgba(255,255,255,.04) 0 2.2px,rgba(0,0,0,.10) 2.9px,transparent 3.3px);
+  background-size:7px 7px,7px 7px}
 
 .lbl{display:flex;justify-content:space-between;align-items:center;font-size:calc(10px * var(--fs, 1));letter-spacing:.12em;text-transform:uppercase;font-weight:600}
 .lbl .cjk{font-size:calc(13px * var(--fs, 1));letter-spacing:.05em}
@@ -688,7 +675,8 @@ table.motion th{color:var(--grey);font-weight:500}
       const w = document.createElement('div'), a = el.classList.contains('shape-a');
       w.className = 'hud-wrap ' + (a ? 'hud-a' : 'hud-b');
       if (el.classList.contains('reveal')) { el.classList.remove('reveal'); w.classList.add('reveal'); w.style.setProperty('--i', el.style.getPropertyValue('--i')); }
-      el.replaceWith(w); w.appendChild(el);
+      el.replaceWith(w);
+      w.appendChild(el);
       (a ? ['bar', 'hatch-l', 'rail'] : ['bar', 'corner', 'tick']).forEach(c => {
         const i = document.createElement('i'); i.className = c;
         if (c === 'rail') i.innerHTML = '<svg viewBox="0 0 104 90"><path d="M6 2 H64.5 L102 39.5 V82"/></svg>';
@@ -696,6 +684,20 @@ table.motion th{color:var(--grey);font-weight:500}
       });
     });
     shapeButtons(root);
+    root.querySelectorAll('.panel.lime.shape-a').forEach(glassMask);
+  }
+  // Размытие «под стеклом» в браузерах не обрезается clip-path, поэтому для стеклянной плашки
+  // ту же форму дублируем маской (SVG по реальному размеру панели).
+  const glassRO = new ResizeObserver(es => es.forEach(e => glassMask(e.target)));
+  function glassMask(el) {
+    const w = el.offsetWidth, h = el.offsetHeight;
+    if (!w || !h) return;
+    const pts = [[22, 0], [w - 104, 0], [w - 96, 8], [w - 34, 8], [w, 42], [w, h - 28], [w - 28, h], [26, h], [8, h - 18], [8, h * .58], [0, h * .58 - 8], [0, 22]];
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><polygon points="${pts.map(p => p.join(',')).join(' ')}"/></svg>`;
+    const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+    el.style.webkitMaskImage = el.style.maskImage = url;
+    el.style.webkitMaskSize = el.style.maskSize = '100% 100%';
+    if (!el.dataset.ro) { el.dataset.ro = 1; glassRO.observe(el); }
   }
   const BTN_VARIANTS = [
     { tab: [24, 66], h: 6, tl: 12, tr: 18, br: 10, bl: 26 },
