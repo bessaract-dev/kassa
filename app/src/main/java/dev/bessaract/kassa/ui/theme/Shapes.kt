@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
 // Формы панелей v3: многоугольники из prototype/style.html. С 2026-10-22 вершины скруглены
-// (roundPath в прототипе): стеклянные панели A/B — 3 dp, остальное — 4 dp, «+» — 6 dp.
+// (roundPath в прототипе): стеклянные панели A/B — 3 dp; кнопки, чипы, поля — 4 dp; строки списков (C) и «+» — чистые срезы.
 
 private fun shape(build: Path.(Size, Density) -> Unit) = object : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density) =
@@ -126,8 +126,8 @@ fun distinctButtonVariants(keys: List<String>): List<Int> {
     }
 }
 
-val ShapeC = diagonalCut(12)
-val ShapeFab = diagonalCut(12, radiusDp = 6)
+val ShapeC = diagonalCut(12, radiusDp = 0)
+val ShapeFab = diagonalCut(12, radiusDp = 0)
 val ShapeChip = diagonalCut(6)
 
 /** Высота «уступа» нижнего листа. */
