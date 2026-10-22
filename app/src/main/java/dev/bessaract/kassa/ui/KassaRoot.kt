@@ -1,6 +1,9 @@
 package dev.bessaract.kassa.ui
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -62,7 +65,6 @@ import dev.bessaract.kassa.core.calc.daysLeft
 import dev.bessaract.kassa.core.model.CatType
 import dev.bessaract.kassa.core.model.Recurring
 import dev.bessaract.kassa.core.model.Tx
-import dev.bessaract.kassa.ui.components.Arrows
 import dev.bessaract.kassa.ui.components.GlitchLoop
 import dev.bessaract.kassa.ui.components.GlitchState
 import dev.bessaract.kassa.ui.components.GlitchTarget
@@ -79,6 +81,7 @@ import dev.bessaract.kassa.ui.screens.PlaceholderScreen
 import dev.bessaract.kassa.ui.screens.PlanActions
 import dev.bessaract.kassa.ui.screens.PlanScreen
 import dev.bessaract.kassa.ui.screens.RecSheetContent
+import dev.bessaract.kassa.ui.screens.SettingsSheetContent
 import dev.bessaract.kassa.ui.screens.TodayScreen
 import dev.bessaract.kassa.ui.screens.TxSheetContent
 import dev.bessaract.kassa.ui.theme.KassaColors
@@ -106,6 +109,7 @@ const val NEW_TX = "new"
 const val NEW_REC_EXP = "rec+exp"
 const val NEW_REC_INC = "rec+inc"
 const val REC_PREFIX = "rec:"
+const val SETTINGS = "settings"
 
 /** Обработчики действий интерфейса — всё, что меняет данные. */
 class KassaActions(
@@ -114,25 +118,38 @@ class KassaActions(
     val onPostRec: (Recurring) -> Unit = {},
     val onSaveRec: (RecDraft) -> Unit = {},
     val onDeleteRec: (String) -> Unit = {},
+    val backupFileName: () -> String = { "kassa.json" },
+    val onExport: (Uri) -> Unit = {},
+    val onReadBackup: (Uri) -> Unit = {},
+    val onApplyBackup: () -> Unit = {},
+    val onResetBackup: () -> Unit = {},
 )
 
 @Composable
 fun KassaRoot(vm: SpendingViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val actions = remember(vm) { KassaActions(vm::save, vm::delete, vm::postRec, vm::saveRec, vm::deleteRec) }
-    KassaContent(state, actions)
+    val backup by vm.backup.collectAsStateWithLifecycle()
+    val actions = remember(vm) {
+        KassaActions(
+            vm::save, vm::delete, vm::postRec, vm::saveRec, vm::deleteRec,
+            vm::backupFileName, vm::exportTo, vm::readBackup, vm::applyBackup, vm::resetBackup,
+        )
+    }
+    KassaContent(state, actions, backup = backup)
 }
 
 /** Что показать в листе: операция или строка плана; null — открывать нечего (удалили или ушла в другой месяц). */
 private sealed interface SheetTarget {
     data class TxForm(val tx: Tx?) : SheetTarget
     data class RecForm(val rec: Recurring?, val type: CatType) : SheetTarget
+    data object Settings : SheetTarget
 }
 
 private fun resolveSheet(sheet: String?, s: SpendingState?): SheetTarget? {
     if (sheet == null || s == null) return null
     return when {
         sheet == NEW_TX -> SheetTarget.TxForm(null)
+        sheet == SETTINGS -> SheetTarget.Settings
         sheet == NEW_REC_EXP -> SheetTarget.RecForm(null, CatType.EXP)
         sheet == NEW_REC_INC -> SheetTarget.RecForm(null, CatType.INC)
         sheet.startsWith(REC_PREFIX) -> s.rec.find { it.id == sheet.removePrefix(REC_PREFIX) }?.let { SheetTarget.RecForm(it, it.type) }
@@ -147,6 +164,7 @@ fun KassaContent(
     actions: KassaActions,
     initialTab: Tab = Tab.HOME,
     initialSheet: String? = null,
+    backup: BackupUi = BackupUi.Idle,
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     var sheet by rememberSaveable { mutableStateOf(initialSheet) }
@@ -160,6 +178,14 @@ fun KassaContent(
     fun submit(action: () -> Unit) { if (sheet != null) { action(); closeSheet() } }
 
     BackHandler(enabled = sheetOpen) { closeSheet() }
+
+    // Файл копии выбирает пользователь системным диалогом (Загрузки, Диск…): приложению не нужен доступ к памяти.
+    val createFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let(actions.onExport)
+    }
+    val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(actions.onReadBackup)
+    }
 
     val plan = remember(actions) { PlanActions(onEdit = { sheet = REC_PREFIX + it.id }, onPost = actions.onPostRec) }
 
@@ -180,7 +206,7 @@ fun KassaContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (s != null) {
-                    SysLine(s)
+                    SysLine(s) { actions.onResetBackup(); sheet = SETTINGS }
                     Head(tab)
                     // key: при смене вкладки панели заново «вытираются» по очереди.
                     androidx.compose.runtime.key(tab) {
@@ -257,6 +283,15 @@ fun KassaContent(
                                 onDelete = { id -> submit { actions.onDeleteRec(id) } },
                                 onCancel = { closeSheet() },
                             )
+                            SheetTarget.Settings -> SettingsSheetContent(
+                                s = s,
+                                backup = backup,
+                                onExport = { createFile.launch(actions.backupFileName()) },
+                                // text/plain и octet-stream: на некоторых телефонах .json из Загрузок помечен так
+                                onPick = { openFile.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+                                onApply = actions.onApplyBackup,
+                                onCancel = { closeSheet() },
+                            )
                             null -> {}
                         }
                     }
@@ -267,13 +302,19 @@ fun KassaContent(
     }
 }
 
-/** Служебная строка: KS-01 // дата // день недели, справа — сколько дней до конца месяца. */
+/** Служебная строка: KS-01 // дата // день недели, справа — сколько дней до конца месяца и ⚙ «Настройки». */
 @Composable
-private fun SysLine(s: SpendingState) {
-    Row(Modifier.fillMaxWidth().padding(top = 18.dp, start = 4.dp, end = 4.dp).reveal(0), verticalAlignment = Alignment.CenterVertically) {
+private fun SysLine(s: SpendingState, onSettings: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 18.dp, start = 4.dp).reveal(0), verticalAlignment = Alignment.CenterVertically) {
         Text("KS-01 // " + sysDate(s.today), style = KassaType.Label.copy(color = KassaColors.Grey, fontWeight = null, letterSpacing = KassaType.Nav.letterSpacing), modifier = Modifier.weight(1f))
-        Text("残 ${daysLeft(s.today)} ДН ", style = KassaType.Label.copy(color = KassaColors.Grey, fontWeight = null))
-        Arrows(2, KassaColors.Grey)
+        Text("残 ${daysLeft(s.today)} ДН", style = KassaType.Label.copy(color = KassaColors.Grey, fontWeight = null))
+        // \uFE0E — текстовый вид значка, а не цветной эмодзи
+        Text(
+            "⚙\uFE0E",
+            style = KassaType.Body.copy(color = KassaColors.Grey, fontSize = 15.sp),
+            modifier = Modifier.press(onClick = onSettings).padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                .semantics { contentDescription = "Настройки" },
+        )
     }
 }
 

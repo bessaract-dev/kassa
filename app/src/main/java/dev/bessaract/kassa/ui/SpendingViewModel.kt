@@ -1,9 +1,15 @@
 package dev.bessaract.kassa.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.bessaract.kassa.KassaApp
+import dev.bessaract.kassa.core.backup.BackupData
+import dev.bessaract.kassa.core.backup.BackupParse
+import dev.bessaract.kassa.core.backup.MergePlan
+import dev.bessaract.kassa.core.backup.decodeBackup
+import dev.bessaract.kassa.core.backup.encodeBackup
 import dev.bessaract.kassa.core.calc.Budget
 import dev.bessaract.kassa.core.calc.Spending
 import dev.bessaract.kassa.core.calc.budget
@@ -20,7 +26,11 @@ import dev.bessaract.kassa.core.model.TxRef
 import dev.bessaract.kassa.core.model.TxType
 import dev.bessaract.kassa.core.newId
 import dev.bessaract.kassa.data.TxRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +41,12 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import java.util.Locale
 
 /** Всё, что нужно экранам: дата, операции месяца и сводки по ним, план, справочники для форм. */
 data class SpendingState(
@@ -48,6 +63,8 @@ data class SpendingState(
     /** Операции текущего месяца (для статусов плана и поиска операции при правке). */
     val monthTx: List<Tx> = emptyList(),
     val budget: Budget,
+    /** Всего операций в базе (за все месяцы). */
+    val txTotal: Int = 0,
 ) {
     fun cats(type: CatType) = if (type == CatType.EXP) expCats else incCats
 }
@@ -66,6 +83,18 @@ data class TxDraft(
     val d: LocalDate,
     val note: String,
 )
+
+/** Состояние листа «Настройки» → резервная копия. */
+sealed interface BackupUi {
+    data object Idle : BackupUi
+    data object Busy : BackupUi
+    /** Копия сохранена в файл. */
+    data class Saved(val count: Int) : BackupUi
+    /** Файл прочитан: что добавится. when — когда сделана копия, по-человечески. */
+    data class Ready(val plan: MergePlan, val total: Int, val whenText: String) : BackupUi
+    data class Added(val tx: Int, val rec: Int) : BackupUi
+    data class Error(val message: String) : BackupUi
+}
 
 /** Черновик строки плана. id = null — новая. */
 data class RecDraft(
@@ -91,7 +120,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         repo.categories,
         repo.persons,
         repo.recurring,
-    ) { (d, tx), cats, persons, rec ->
+        repo.txCount,
+    ) { (d, tx), cats, persons, rec, total ->
         SpendingState(
             today = d,
             spending = spending(tx, d),
@@ -103,6 +133,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             monthTx = tx,
             // кредитов и целей ещё нет (0.6–0.7) — в обязательные пока входит только план
             budget = budget(rec, emptyList(), emptyList(), tx, d),
+            txTotal = total,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -165,6 +196,92 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val posting = mutableSetOf<String>()
+
+    // --- резервная копия (0.5): файл выбирает пользователь, приложение в сеть не ходит ---
+
+    private val _backup = MutableStateFlow<BackupUi>(BackupUi.Idle)
+
+    /** 20 МБ — с большим запасом: год ежедневных трат — около 1 МБ. */
+    private val MAX_BACKUP_BYTES = 20 * 1024 * 1024
+    val backup = _backup.asStateFlow()
+
+    private val resolver get() = getApplication<Application>().contentResolver
+
+    /** Имя файла по умолчанию: kassa-ГГГГ-ММ-ДД.json. */
+    fun backupFileName(): String = "kassa-${LocalDate.now()}.json"
+
+    fun exportTo(uri: Uri) {
+        if (_backup.value == BackupUi.Busy) return
+        _backup.value = BackupUi.Busy
+        viewModelScope.launch {
+            _backup.value = try {
+                val data = repo.snapshot()
+                val text = withContext(Dispatchers.Default) { encodeBackup(data, Instant.now().truncatedTo(ChronoUnit.SECONDS).toString()) }
+                withContext(Dispatchers.IO) {
+                    // CreateDocument всегда создаёт новый файл, поэтому хватает "w" (режим "wt" поддерживают не все хранилища)
+                    (resolver.openOutputStream(uri, "w") ?: error("нет потока")).use { it.write(text.toByteArray()) }
+                }
+                BackupUi.Saved(data.tx.size)
+            } catch (e: Exception) {
+                BackupUi.Error("Не удалось сохранить файл. Попробуй выбрать другое место.")
+            }
+        }
+    }
+
+    fun readBackup(uri: Uri) {
+        if (_backup.value == BackupUi.Busy) return
+        _backup.value = BackupUi.Busy
+        viewModelScope.launch {
+            _backup.value = try {
+                val text = withContext(Dispatchers.IO) {
+                    (resolver.openInputStream(uri) ?: error("нет потока")).use { input ->
+                        // читаем не больше MAX_BACKUP_BYTES: видео или архив, выбранный по ошибке, не должен съесть память
+                        val bytes = input.readNBytesCompat(MAX_BACKUP_BYTES + 1)
+                        if (bytes.size > MAX_BACKUP_BYTES) null else bytes.decodeToString()
+                    }
+                } ?: return@launch run { _backup.value = BackupUi.Error("Файл слишком большой для копии «Кассы».") }
+                when (val p = withContext(Dispatchers.Default) { decodeBackup(text) }) {
+                    is BackupParse.Error -> BackupUi.Error(p.message)
+                    is BackupParse.Ok -> BackupUi.Ready(repo.planMerge(p.data), p.data.tx.size + p.data.rec.size, whenText(p.data))
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // в т.ч. OutOfMemoryError / StackOverflowError — сообщение вместо падения
+                BackupUi.Error("Не удалось прочитать файл.")
+            }
+        }
+    }
+
+    fun applyBackup() {
+        val ready = _backup.value as? BackupUi.Ready ?: return
+        _backup.value = BackupUi.Busy
+        viewModelScope.launch {
+            _backup.value = try {
+                repo.applyMerge(ready.plan)
+                BackupUi.Added(ready.plan.tx.size, ready.plan.rec.size)
+            } catch (e: Exception) {
+                BackupUi.Error("Не удалось добавить данные — ничего не изменилось.")
+            }
+        }
+    }
+
+    private fun java.io.InputStream.readNBytesCompat(limit: Int): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(64 * 1024)
+        while (out.size() < limit) {
+            val n = read(buf, 0, minOf(buf.size, limit - out.size()))
+            if (n < 0) break
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
+    }
+
+    fun resetBackup() { if (_backup.value != BackupUi.Busy) _backup.value = BackupUi.Idle }
+
+    private fun whenText(d: BackupData): String = d.exported?.let {
+        runCatching { Instant.parse(it).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("d MMMM, HH:mm", Locale.forLanguageTag("ru"))) }.getOrNull()
+    } ?: "неизвестной даты"
 
     fun saveRec(d: RecDraft) {
         viewModelScope.launch {

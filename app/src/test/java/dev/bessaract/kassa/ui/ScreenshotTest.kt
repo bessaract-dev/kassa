@@ -87,8 +87,8 @@ class ScreenshotTest {
         )
     }
 
-    private fun shot(name: String, s: SpendingState, tab: Tab = Tab.HOME, sheet: String? = null) {
-        rule.setContent { KassaTheme { KassaContent(s, KassaActions(), tab, sheet) } }
+    private fun shot(name: String, s: SpendingState, tab: Tab = Tab.HOME, sheet: String? = null, backup: BackupUi = BackupUi.Idle) {
+        rule.setContent { KassaTheme { KassaContent(s, KassaActions(), tab, sheet, backup) } }
         rule.mainClock.advanceTimeBy(3_000)
         // Рисуем окно в Bitmap сами: captureToImage под Robolectric зависает на ожидании кадра.
         val bmp = rule.runOnIdle {
@@ -110,5 +110,10 @@ class ScreenshotTest {
     @Test fun historyPlan() = shot("history-plan", state(true, withPlan = true), Tab.HIST)
     @Test fun sheetRecNew() = shot("sheet-rec-new", state(true, withPlan = true), Tab.PLAN, NEW_REC_INC)
     @Test fun sheetRecEdit() = shot("sheet-rec-edit", state(true, withPlan = true), Tab.PLAN, REC_PREFIX + "rent")
+    @Test fun settings() = shot("settings", state(true, withPlan = true), sheet = SETTINGS, backup = BackupUi.Saved(10))
+    @Test fun settingsReady() = shot(
+        "settings-ready", state(true, withPlan = true), sheet = SETTINGS,
+        backup = BackupUi.Ready(dev.bessaract.kassa.core.backup.MergePlan(emptyList(), emptyList(), plan.take(2), emptyList(), 15), 17, "22 октября, 12:12"),
+    )
     @Test fun sheetPlanTx() = shot("sheet-plan-tx", state(true, withPlan = true), Tab.HIST, "p3")
 }

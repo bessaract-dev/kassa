@@ -1,7 +1,10 @@
 package dev.bessaract.kassa.data.db
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -59,4 +62,30 @@ interface KassaDao {
 
     @Query("DELETE FROM recurring WHERE id = :id")
     suspend fun deleteRecurring(id: String)
+
+    // --- резервная копия: снимок всех данных и добавление недостающего ---
+
+    @Query("SELECT * FROM accounts ORDER BY position") suspend fun allAccounts(): List<AccountEntity>
+    @Query("SELECT * FROM categories ORDER BY position") suspend fun allCategories(): List<CategoryEntity>
+    @Query("SELECT * FROM persons ORDER BY position") suspend fun allPersons(): List<PersonEntity>
+    @Query("SELECT * FROM recurring ORDER BY position") suspend fun allRecurring(): List<RecurringEntity>
+    @Query("SELECT * FROM loans ORDER BY position") suspend fun allLoans(): List<LoanEntity>
+    @Query("SELECT * FROM goals ORDER BY position") suspend fun allGoals(): List<GoalEntity>
+    @Query("SELECT * FROM tx ORDER BY d, ts") suspend fun allTx(): List<TxEntity>
+    @Query("SELECT id FROM tx") suspend fun allTxIds(): List<String>
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM persons")
+    suspend fun maxPersonPosition(): Int
+
+    // IGNORE: если запись с таким id уже есть, её не трогаем (восстановление — объединением).
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertCategories(list: List<CategoryEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertPersons(list: List<PersonEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertRecurring(list: List<RecurringEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertTx(list: List<TxEntity>)
+
+    /** Добавить всё из копии одной транзакцией: либо всё, либо ничего. */
+    @Transaction
+    suspend fun insertBackup(cats: List<CategoryEntity>, persons: List<PersonEntity>, rec: List<RecurringEntity>, tx: List<TxEntity>) {
+        insertCategories(cats); insertPersons(persons); insertRecurring(rec); insertTx(tx)
+    }
 }

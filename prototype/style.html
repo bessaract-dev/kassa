@@ -721,8 +721,11 @@ table.motion th{color:var(--grey);font-weight:500}
     const c = o && o.cfg, m = o && o.months;
     if (!c || !Array.isArray(c.cats) || !m || typeof m !== 'object') return 'Это не похоже на копию «Кассы».';
     if (o.format > BACKUP_FORMAT) return 'Копия из более новой версии приложения — сначала обнови приложение.';
-    const tx = Object.values(m).flat();
-    const okTx = t => t && typeof t.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) && ['exp', 'inc', 'tr'].includes(t.t) && isFinite(t.amt) && isFinite(t.rub);
+    // months[k] — массив (наш файл) или объект {id: tx} (как в kassa.html)
+    const tx = Object.values(m).flatMap(v => Array.isArray(v) ? v : Object.values(v || {}));
+    const okDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(d + 'T12:00').toISOString().slice(0, 10) === d;
+    const okAmt = v => typeof v === 'number' && isFinite(v) && v >= 0 && v < 1e11;
+    const okTx = t => t && typeof t.id === 'string' && okDate(t.d) && ['exp', 'inc', 'tr'].includes(t.t) && okAmt(t.amt) && okAmt(t.rub);
     const bad = tx.filter(t => !okTx(t)).length;
     if (bad) return `В файле ${bad} повреждённых операций — восстановление отменено.`;
     return { cats: c.cats, persons: Array.isArray(c.persons) && c.persons.length ? c.persons : defaults().persons, rec: Array.isArray(c.rec) ? c.rec : [], tx,
